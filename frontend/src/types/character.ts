@@ -6,6 +6,33 @@ export type SecondaryStatKey = 'hp' | 'san' | 'luck' | 'mp'
 
 export type SecondaryStats = Record<SecondaryStatKey, number>
 
+export type SkillCategory =
+  | '学识'
+  | '社交'
+  | '调查'
+  | '战斗'
+  | '生存'
+  | '技艺'
+  | '医疗'
+
+export interface SkillDefinition {
+  id: string
+  name: string
+  category: SkillCategory
+  base: number
+  description?: string
+}
+
+export type ItemCategory = '武器' | '工具' | '医疗' | '书籍' | '其他'
+
+export interface EquipmentItem {
+  id: string
+  name: string
+  category: ItemCategory
+  description: string
+  weight?: number
+}
+
 export interface Profession {
   id: string
   name: string
