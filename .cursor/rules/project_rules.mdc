@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 ## 项目原则
 
 - **平台**：React+Vite 纯前端，静态部署；数据全在 `src/data`，逻辑在 `src/services`，仅用 `localStorage`。
