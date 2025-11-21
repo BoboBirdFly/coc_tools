@@ -51,6 +51,8 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-muted);
+  display: flex;
+  align-items: center;
 }
 
 .attributeInput {

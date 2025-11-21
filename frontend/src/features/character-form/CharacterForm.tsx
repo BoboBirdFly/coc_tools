@@ -3,6 +3,7 @@ import type { FullProfession } from '@data/professions-full'
 import { ATTRIBUTE_NAMES, UI_TEXT } from '@data/i18n'
 import { ATTRIBUTE_RULES } from '@data/constants'
 import ProfessionSelector from '@components/ProfessionSelector'
+import AttributeTooltip from '@components/AttributeTooltip'
 import styles from './CharacterForm.module.css'
 
 type CharacterFormProps = {
@@ -70,6 +71,7 @@ const CharacterForm = ({
                 <div key={key} className={styles.attributeCard}>
                   <span className={styles.attributeLabel}>
                     {ATTRIBUTE_NAMES[attrKey] || key.toUpperCase()}
+                    <AttributeTooltip attribute={attrKey} />
                   </span>
                   <input
                     className={styles.attributeInput}

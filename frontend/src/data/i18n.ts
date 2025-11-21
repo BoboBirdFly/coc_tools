@@ -75,7 +75,7 @@ export const UI_TEXT = {
   defaultExportFileName: '角色卡',
   exportButtonTitle: '导出角色卡为 JSON（供备份）',
   exportButtonLabel: '导出 JSON',
-  attributeInputLabel: '基础属性（COC7th：15-90，步进 5）',
+  attributeInputLabel: '基础属性（范围：15-90，每次调整 5）',
   skillPointsOccupation: '按 COC7th 职业配点',
   skillPointsPersonal: 'INT × 2',
 } as const
