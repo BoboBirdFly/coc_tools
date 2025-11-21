@@ -1,12 +1,13 @@
-import type { BaseCharacterInput, AttributeKey, Profession } from '@schema/character'
-import { getSkillById } from '@data/skills'
+import type { BaseCharacterInput, AttributeKey } from '@schema/character'
+import type { FullProfession } from '@data/professions-full'
 import { ATTRIBUTE_NAMES, UI_TEXT } from '@data/i18n'
 import { ATTRIBUTE_RULES } from '@data/constants'
+import ProfessionSelector from '@components/ProfessionSelector'
 import styles from './CharacterForm.module.css'
 
 type CharacterFormProps = {
   value: BaseCharacterInput
-  professions: Profession[]
+  professions: FullProfession[]
   onChange: (payload: Partial<BaseCharacterInput>) => void
   onAttributeChange: (key: keyof BaseCharacterInput['attributes'], value: number) => void
 }
@@ -25,8 +26,6 @@ const CharacterForm = ({
   onChange,
   onAttributeChange,
 }: CharacterFormProps) => {
-  const activeProfession = professions.find((p) => p.id === value.professionId)
-
   // 处理属性输入变化，自动校验
   const handleAttributeChange = (key: AttributeKey, rawValue: number) => {
     const validated = validateAttribute(rawValue)
@@ -55,26 +54,11 @@ const CharacterForm = ({
           <label className={styles.label} htmlFor="profession">
             职业
           </label>
-          <select
-            id="profession"
-            className={`${styles.input} ${styles.select}`}
+          <ProfessionSelector
+            professions={professions}
             value={value.professionId}
-            onChange={(event) => onChange({ professionId: event.target.value })}
-          >
-            {professions.map((profession) => (
-              <option key={profession.id} value={profession.id}>
-                {profession.name}
-              </option>
-            ))}
-          </select>
-          {activeProfession && (
-            <p className={styles.hint}>
-              {activeProfession.description} · 关键技能：
-              {activeProfession.signatureSkills
-                .map((skillId) => getSkillById(skillId)?.name ?? skillId)
-                .join('、')}
-            </p>
-          )}
+            onChange={(professionId) => onChange({ professionId })}
+          />
         </div>
 
         <div>

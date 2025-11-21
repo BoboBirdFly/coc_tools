@@ -82,7 +82,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
         </div>
 
         <div className={styles.card}>
-          <p className={styles['section-title']}>技能点与签名技能</p>
+          <p className={styles['section-title']}>技能点与熟练技能</p>
           <div className={styles.grid}>
             <div className={styles.stat}>
               <span className={styles['stat-label']}>职业技能点</span>
@@ -96,7 +96,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
             </div>
             {character.signatureSkills.length > 0 && (
               <div className={styles.stat}>
-                <span className={styles['stat-label']}>签名技能</span>
+                <span className={styles['stat-label']}>熟练技能</span>
                 <ul className={styles.list}>
                   {character.signatureSkills.map((skill) => (
                     <li key={skill.id}>

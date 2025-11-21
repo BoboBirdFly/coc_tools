@@ -17,6 +17,17 @@ export const ATTRIBUTE_NAMES: Record<AttributeKey, string> = {
   edu: '教育',
 }
 
+// 属性中文名称到英文键的反向映射（用于解析技能公式等场景）
+export const ATTRIBUTE_NAME_TO_KEY: Record<string, AttributeKey> = Object.entries(
+  ATTRIBUTE_NAMES,
+).reduce(
+  (acc, [key, name]) => {
+    acc[name] = key as AttributeKey
+    return acc
+  },
+  {} as Record<string, AttributeKey>,
+)
+
 // 属性英文缩写映射
 export const ATTRIBUTE_ABBREVIATIONS: Record<AttributeKey, string> = {
   str: 'STR',

@@ -1,6 +1,6 @@
 import CharacterForm from '@features/character-form/CharacterForm'
 import SummaryPanel from '@features/summary-panel/SummaryPanel'
-import { PROFESSIONS } from '@data/professions'
+import { FULL_PROFESSIONS } from '@data/professions-full'
 import { useCharacterBuilder } from '@hooks/useCharacterBuilder'
 import './App.css'
 
@@ -18,7 +18,7 @@ function App() {
         <div className="two-column">
           <CharacterForm
             value={form}
-            professions={PROFESSIONS}
+            professions={FULL_PROFESSIONS}
             onChange={actions.updateForm}
             onAttributeChange={actions.updateAttribute}
           />

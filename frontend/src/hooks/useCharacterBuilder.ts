@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useReducer } from 'react'
 import { DEFAULT_ATTRIBUTES, STORAGE_KEYS } from '@data/constants'
 import { UI_TEXT } from '@data/i18n'
-import { PROFESSIONS } from '@data/professions'
+import { FULL_PROFESSIONS } from '@data/professions-full'
 import { calculateCharacter } from '@services/calculator'
-import type { BaseCharacterInput, CalculatedCharacter } from '@schema/character'
+import type { BaseCharacterInput, CalculatedCharacter, Profession } from '@schema/character'
 import { getLocalStorageItem, setLocalStorageItem } from '@utils/storage'
 
 // 状态管理类型定义
@@ -28,7 +28,7 @@ const STORAGE_KEY = STORAGE_KEYS.characterBuilder
  * 根据表单数据计算角色属性（调用 calculator 服务）
  */
 const buildCalculated = (form: BaseCharacterInput): CalculatedCharacter => {
-  const profession = PROFESSIONS.find((item) => item.id === form.professionId)
+  const profession = FULL_PROFESSIONS.find((item) => item.id === form.professionId) as Profession | undefined
   return calculateCharacter(form, profession)
 }
 
@@ -45,7 +45,7 @@ const makeInitialState = (): BuilderState => {
       }
     : {
       name: UI_TEXT.defaultCharacterName,
-        professionId: PROFESSIONS[0].id,
+      professionId: FULL_PROFESSIONS[0].id,
         attributes: { ...DEFAULT_ATTRIBUTES },
       }
   return {
@@ -113,7 +113,7 @@ export const useCharacterBuilder = () => {
 
   // 当前职业信息（缓存计算结果）
   const profession = useMemo(
-    () => PROFESSIONS.find((item) => item.id === state.form.professionId),
+    () => FULL_PROFESSIONS.find((item) => item.id === state.form.professionId) as Profession | undefined,
     [state.form.professionId],
   )
 
