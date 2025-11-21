@@ -8,7 +8,7 @@
   padding: 1.5rem 2rem;
   background: var(--color-panel);
   border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   position: sticky;
   top: 0;
   z-index: 5;
@@ -21,6 +21,12 @@
   gap: 1rem;
 }
 
+.app-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .app-title {
   margin: 0;
   font-size: 1.5rem;
@@ -31,25 +37,6 @@
   margin: 0.25rem 0 0;
   color: var(--color-muted);
   font-size: 0.95rem;
-}
-
-.app-create-button {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  background: var(--color-primary, #007bff);
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.app-create-button:hover {
-  background: var(--color-primary-dark, #0056b3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
 }
 
 .app-main {
@@ -70,7 +57,7 @@
   border-radius: 1.25rem;
   border: 1px solid var(--color-border);
   padding: 1.5rem;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
 
 .panel h2 {
@@ -80,19 +67,34 @@
 
 @media (max-width: 640px) {
   .app-header {
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
   }
 
   .app-header-content {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
-  .app-create-button {
+  .app-title {
+    font-size: 1.25rem;
+  }
+
+  .app-description {
+    font-size: 0.85rem;
+    margin-top: 0.125rem;
+  }
+
+  .app-header-actions {
     width: 100%;
-    padding: 0.625rem 1.25rem;
-    font-size: 0.95rem;
+    flex-direction: row;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .app-header-actions > * {
+    flex: 1;
+    min-width: 0;
   }
 
   .app-main {

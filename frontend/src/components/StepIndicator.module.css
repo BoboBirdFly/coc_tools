@@ -1,0 +1,96 @@
+.container {
+  margin-bottom: 2rem;
+}
+
+.steps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.stepCircle {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.stepCircle.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+  transform: scale(1.1);
+}
+
+.stepCircle.completed {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: white;
+}
+
+.stepLabel {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.stepLabel.active {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.stepLabel.completed {
+  color: var(--color-text);
+}
+
+.progressBar {
+  height: 4px;
+  background: var(--color-bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  .stepCircle {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.875rem;
+  }
+
+  .stepLabel {
+    font-size: 0.75rem;
+  }
+
+  .steps {
+    gap: 0.5rem;
+  }
+}
+

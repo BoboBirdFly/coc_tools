@@ -21,18 +21,18 @@
 
 .backButton {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: white;
-  color: var(--color-text, #333);
+  background: var(--color-panel);
+  color: var(--color-text);
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
 .backButton:hover {
-  background: var(--color-bg-hover, #f5f5f5);
-  border-color: var(--color-primary, #007bff);
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
 }
 
 /* 车卡方式选择 */
@@ -59,17 +59,17 @@
 
 .methodCard {
   padding: 2rem 1.5rem;
-  border: 2px solid var(--color-border, #ddd);
+  border: 2px solid var(--color-border);
   border-radius: 12px;
-  background: white;
+  background: var(--color-panel);
   cursor: pointer;
   transition: all 0.3s;
   text-align: left;
 }
 
 .methodCard:hover {
-  border-color: var(--color-primary, #007bff);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(139, 46, 92, 0.3);
   transform: translateY(-2px);
 }
 
@@ -218,10 +218,10 @@
 .controlButton {
   width: 2rem;
   height: 2rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: white;
-  color: var(--color-text, #333);
+  background: var(--color-panel);
+  color: var(--color-text);
   font-size: 1.2rem;
   font-weight: 600;
   cursor: pointer;
@@ -232,9 +232,9 @@
 }
 
 .controlButton:hover:not(:disabled) {
-  background: var(--color-primary, #007bff);
+  background: var(--color-primary);
   color: white;
-  border-color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
 }
 
 .controlButton:disabled {
@@ -333,20 +333,31 @@
 
 .errorMessage {
   padding: 0.75rem;
-  background: #fff3cd;
-  border: 1px solid #ffc107;
+  background: rgba(139, 46, 92, 0.2);
+  border: 1px solid var(--color-error);
   border-radius: 6px;
-  color: #856404;
+  color: var(--color-error);
   margin-bottom: 1rem;
   font-size: 0.9rem;
 }
 
 /* 职业选择步骤 */
+.professionStepContainer {
+  width: 100%;
+}
+
 .professionStep {
   background: var(--color-panel, white);
   border-radius: 12px;
   padding: 1.5rem;
   border: 1px solid var(--color-border, #ddd);
+}
+
+.selectorTitle {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #333);
 }
 
 .professionSelector {
@@ -361,18 +372,18 @@
 
 .cancelButton {
   padding: 0.5rem 1.5rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: white;
-  color: var(--color-text, #333);
+  background: var(--color-panel);
+  color: var(--color-text);
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
 .cancelButton:hover {
-  background: var(--color-bg-hover, #f5f5f5);
-  border-color: var(--color-text-secondary, #999);
+  background: var(--color-bg-hover);
+  border-color: var(--color-text-secondary);
 }
 
 /* 移动端优化 */

@@ -1,3 +1,4 @@
+import { Card } from '@components/ui'
 import styles from './CharacterCreation.module.css'
 
 type CreationMethod = 'fate' | 'point-buy' | null
@@ -12,7 +13,7 @@ type CreationMethodSelectorProps = {
  */
 const CreationMethodSelector = ({ onSelect }: CreationMethodSelectorProps) => {
   return (
-    <div className={styles.methodSelector}>
+    <Card variant="default" padding="md" className={styles.methodSelector}>
       <h2 className={styles.title}>选择车卡方式</h2>
       <p className={styles.subtitle}>请选择一种方式创建角色属性</p>
       
@@ -56,12 +57,12 @@ const CreationMethodSelector = ({ onSelect }: CreationMethodSelectorProps) => {
             </div>
             <div className={styles.detailItem}>
               <strong>范围：</strong>
-              <span>15-90（步进 5）</span>
+              <span>15-90（每次调整 5）</span>
             </div>
           </div>
         </button>
       </div>
-    </div>
+    </Card>
   )
 }
 

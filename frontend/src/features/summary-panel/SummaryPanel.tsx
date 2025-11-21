@@ -1,6 +1,7 @@
 import type { CalculatedCharacter, AttributeKey, Profession } from '@schema/character'
 import { ATTRIBUTE_NAMES, SECONDARY_NAMES, UI_TEXT } from '@data/i18n'
 import { EXPORT_CONFIG } from '@data/constants'
+import { Button, StatCard, Card } from '@components/ui'
 import styles from './SummaryPanel.module.css'
 
 type SummaryPanelProps = {
@@ -10,16 +11,12 @@ type SummaryPanelProps = {
 
 const SummaryPanel = ({ character }: SummaryPanelProps) => {
   // 渲染属性检定阈值提示
-  const renderThresholdNote = (attributeKey: string) => {
+  const renderThresholdNote = (attributeKey: string): string | null => {
     const threshold = character.thresholds[attributeKey as keyof typeof character.thresholds]
     if (!threshold) {
       return null
     }
-    return (
-      <span className={styles['stat-note']}>
-        困难 {threshold.hard} · 极难 {threshold.extreme}
-      </span>
-    )
+    return `困难 ${threshold.hard} · 极难 ${threshold.extreme}`
   }
 
   // 导出角色卡为 JSON（供备份）
@@ -40,60 +37,59 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
     <section className="panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h2>结果与推导</h2>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleExportJSON}
-          className={styles.exportButton}
           title={UI_TEXT.exportButtonTitle}
         >
           {UI_TEXT.exportButtonLabel}
-        </button>
+        </Button>
       </div>
       <div className={styles.stack}>
-        <div className={styles.card}>
+        <Card variant="default" padding="md">
           <p className={styles['section-title']}>主要属性</p>
           <div className={styles.grid}>
             {Object.entries(character.attributes).map(([key, value]) => {
               const attrKey = key as AttributeKey
               return (
-                <div key={key} className={styles.stat}>
-                  <span className={styles['stat-label']}>
-                    {ATTRIBUTE_NAMES[attrKey] || key.toUpperCase()}
-                  </span>
-                  <strong className={styles['stat-value']}>{value}</strong>
-                  {renderThresholdNote(key)}
-                </div>
+                <StatCard
+                  key={key}
+                  label={ATTRIBUTE_NAMES[attrKey] || key.toUpperCase()}
+                  value={value}
+                  note={renderThresholdNote(key) || undefined}
+                />
               )
             })}
           </div>
-        </div>
+        </Card>
 
-        <div className={styles.card}>
+        <Card variant="default" padding="md">
           <p className={styles['section-title']}>二级属性</p>
           <div className={styles.grid}>
             {Object.entries(character.secondaryStats).map(([key, value]) => (
-              <div key={key} className={styles.stat}>
-                <span className={styles['stat-label']}>
-                  {SECONDARY_NAMES[key] || key.toUpperCase()}
-                </span>
-                <strong className={styles['stat-value']}>{value}</strong>
-              </div>
+              <StatCard
+                key={key}
+                label={SECONDARY_NAMES[key] || key.toUpperCase()}
+                value={value}
+              />
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className={styles.card}>
+        <Card variant="default" padding="md">
           <p className={styles['section-title']}>技能点与熟练技能</p>
           <div className={styles.grid}>
-            <div className={styles.stat}>
-              <span className={styles['stat-label']}>职业技能点</span>
-              <strong className={styles['stat-value']}>{character.skillBudgets.occupation}</strong>
-              <span className={styles['stat-note']}>{UI_TEXT.skillPointsOccupation}</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles['stat-label']}>兴趣技能点</span>
-              <strong className={styles['stat-value']}>{character.skillBudgets.personal}</strong>
-              <span className={styles['stat-note']}>{UI_TEXT.skillPointsPersonal}</span>
-            </div>
+            <StatCard
+              label="职业技能点"
+              value={character.skillBudgets.occupation}
+              note={UI_TEXT.skillPointsOccupation}
+            />
+            <StatCard
+              label="兴趣技能点"
+              value={character.skillBudgets.personal}
+              note={UI_TEXT.skillPointsPersonal}
+            />
             {character.signatureSkills.length > 0 && (
               <div className={styles.stat}>
                 <span className={styles['stat-label']}>熟练技能</span>
@@ -107,7 +103,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </section>
   )

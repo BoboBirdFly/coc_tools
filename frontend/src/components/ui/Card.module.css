@@ -1,0 +1,56 @@
+/* 基础卡片样式 */
+.card {
+  background: var(--color-panel);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+/* 变体 */
+.default {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.elevated {
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: var(--color-panel-elevated);
+}
+
+.outlined {
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+/* 内边距 */
+.padding-none {
+  padding: 0;
+}
+
+.padding-sm {
+  padding: 0.75rem;
+}
+
+.padding-md {
+  padding: 1.5rem;
+}
+
+.padding-lg {
+  padding: 2rem;
+}
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  .card {
+    border-radius: 8px;
+  }
+
+  .padding-md {
+    padding: 1rem;
+  }
+
+  .padding-lg {
+    padding: 1.5rem;
+  }
+}
+

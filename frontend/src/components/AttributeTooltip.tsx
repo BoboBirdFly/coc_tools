@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
 import type { AttributeKey } from '@schema/character'
 import { ATTRIBUTE_NAMES, SECONDARY_NAMES } from '@data/i18n'
+import { Tooltip } from './ui'
 import styles from './AttributeTooltip.module.css'
 
 type AttributeTooltipProps = {
@@ -43,60 +43,18 @@ const getAffectedSecondaries = (attribute: AttributeKey): string[] => {
 
 /**
  * 属性说明浮层组件
+ * 基于通用 Tooltip 组件实现
  */
 const AttributeTooltip = ({ attribute }: AttributeTooltipProps) => {
-  const [isOpen, setIsOpen] = useState(false)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-
-  // 点击外部关闭浮层
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        tooltipRef.current &&
-        !tooltipRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
-
   const description = getAttributeDescription(attribute)
   const affectedSecondaries = getAffectedSecondaries(attribute)
 
   return (
-    <div className={styles.container}>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={styles.icon}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={`${ATTRIBUTE_NAMES[attribute]}说明`}
-        title={`${ATTRIBUTE_NAMES[attribute]}说明`}
-      >
-        ?
-      </button>
-      {isOpen && (
-        <div ref={tooltipRef} className={styles.tooltip}>
+    <Tooltip
+      content={
+        <div className={styles.tooltipContent}>
           <div className={styles.header}>
             <strong>{ATTRIBUTE_NAMES[attribute]}</strong>
-            <button
-              className={styles.close}
-              onClick={() => setIsOpen(false)}
-              aria-label="关闭"
-            >
-              ×
-            </button>
           </div>
           <div className={styles.content}>
             <p className={styles.description}>{description}</p>
@@ -110,8 +68,19 @@ const AttributeTooltip = ({ attribute }: AttributeTooltipProps) => {
             )}
           </div>
         </div>
-      )}
-    </div>
+      }
+      position="bottom"
+      trigger="click"
+    >
+      <button
+        type="button"
+        className={styles.icon}
+        aria-label={`${ATTRIBUTE_NAMES[attribute]}说明`}
+        title={`${ATTRIBUTE_NAMES[attribute]}说明`}
+      >
+        ?
+      </button>
+    </Tooltip>
   )
 }
 

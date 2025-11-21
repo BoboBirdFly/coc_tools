@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import type { AttributeMap, AttributeKey } from '@schema/character'
 import { ATTRIBUTE_NAMES } from '@data/i18n'
 import { ATTRIBUTE_RULES } from '@data/constants'
+import { Button, PageHeader, StatCard, NumberInput, Card } from '@components/ui'
 import styles from './CharacterCreation.module.css'
 
 type PointBuyCreationProps = {
@@ -78,35 +79,19 @@ const PointBuyCreation = ({ onComplete, onBack }: PointBuyCreationProps) => {
   }
 
   return (
-    <div className={styles.pointBuyCreation}>
-      <div className={styles.header}>
-        <button className={styles.backButton} onClick={onBack}>
-          ← 返回
-        </button>
-        <h2 className={styles.title}>购点车卡</h2>
-      </div>
+    <Card variant="default" padding="md" className={styles.pointBuyCreation}>
+      <PageHeader title="购点车卡" onBack={onBack} />
 
       <div className={styles.content}>
         {/* 点数统计 */}
         <div className={styles.pointsSummary}>
-          <div className={styles.pointsItem}>
-            <span className={styles.pointsLabel}>总点数：</span>
-            <span className={styles.pointsValue}>{TOTAL_POINTS}</span>
-          </div>
-          <div className={styles.pointsItem}>
-            <span className={styles.pointsLabel}>已用点数：</span>
-            <span className={styles.pointsValue}>{usedPoints}</span>
-          </div>
-          <div className={styles.pointsItem}>
-            <span className={styles.pointsLabel}>剩余点数：</span>
-            <span
-              className={`${styles.pointsValue} ${
-                remainingPoints < 0 ? styles.error : remainingPoints === 0 ? styles.success : ''
-              }`}
-            >
-              {remainingPoints}
-            </span>
-          </div>
+          <StatCard label="总点数" value={TOTAL_POINTS} />
+          <StatCard label="已用点数" value={usedPoints} />
+          <StatCard
+            label="剩余点数"
+            value={remainingPoints}
+            variant={remainingPoints === 0 ? 'highlight' : remainingPoints < 0 ? 'default' : 'default'}
+          />
         </div>
 
         {remainingPoints < 0 && (
@@ -120,49 +105,42 @@ const PointBuyCreation = ({ onComplete, onBack }: PointBuyCreationProps) => {
           {Object.entries(attributes).map(([key, value]) => {
             const attrKey = key as AttributeKey
             return (
-              <div key={key} className={styles.attributeCard}>
-                <div className={styles.attributeHeader}>
-                  <span className={styles.attributeName}>
-                    {ATTRIBUTE_NAMES[attrKey]}
-                  </span>
-                  <span className={styles.attributeValue}>{value}</span>
-                </div>
+              <Card key={key} variant="outlined" padding="sm" className={styles.attributeCard}>
+                <StatCard
+                  label={ATTRIBUTE_NAMES[attrKey]}
+                  value={value}
+                />
                 <div className={styles.attributeControls}>
-                  <button
-                    className={styles.controlButton}
-                    onClick={() => adjustAttribute(attrKey, -ATTRIBUTE_RULES.step)}
-                    disabled={!canDecrease(attrKey)}
-                    aria-label={`减少${ATTRIBUTE_NAMES[attrKey]}`}
-                  >
-                    −
-                  </button>
-                  <span className={styles.controlValue}>{value}</span>
-                  <button
-                    className={styles.controlButton}
-                    onClick={() => adjustAttribute(attrKey, ATTRIBUTE_RULES.step)}
-                    disabled={!canIncrease(attrKey)}
-                    aria-label={`增加${ATTRIBUTE_NAMES[attrKey]}`}
-                  >
-                    +
-                  </button>
+                  <NumberInput
+                    value={value}
+                    min={ATTRIBUTE_RULES.min}
+                    max={ATTRIBUTE_RULES.max}
+                    step={ATTRIBUTE_RULES.step}
+                    readOnly
+                    onIncrement={() => adjustAttribute(attrKey, ATTRIBUTE_RULES.step)}
+                    onDecrement={() => adjustAttribute(attrKey, -ATTRIBUTE_RULES.step)}
+                    canIncrement={canIncrease(attrKey)}
+                    canDecrement={canDecrease(attrKey)}
+                  />
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>
 
         {/* 操作按钮 */}
         <div className={styles.actions}>
-          <button
-            className={styles.confirmButton}
+          <Button
+            variant="primary"
             onClick={handleConfirm}
             disabled={remainingPoints !== 0}
+            fullWidth
           >
             {remainingPoints === 0 ? '确认属性 →' : `还需分配 ${remainingPoints} 点`}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Card>
   )
 }
 

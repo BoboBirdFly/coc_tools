@@ -2,10 +2,12 @@ import { useState } from 'react'
 import type { AttributeMap } from '@schema/character'
 import CharacterSheetPage from '@pages/CharacterSheetPage'
 import CharacterCreation from '@features/character-creation/CharacterCreation'
+import SkillsReferencePage from '@pages/SkillsReferencePage'
 import { useCharacterBuilder } from '@hooks/useCharacterBuilder'
+import { Button } from '@components/ui'
 import './App.css'
 
-type Page = 'sheet' | 'creation'
+type Page = 'sheet' | 'creation' | 'skills'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('sheet')
@@ -33,14 +35,35 @@ function App() {
             <h1 className="app-title">COC Tools</h1>
             <p className="app-description">纯前端离线工具 · 即开即用</p>
           </div>
-          {currentPage === 'sheet' && (
-            <button
-              className="app-create-button"
-              onClick={() => setCurrentPage('creation')}
-            >
-              ➕ 创建角色
-            </button>
-          )}
+          <div className="app-header-actions">
+            {currentPage === 'sheet' && (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setCurrentPage('skills')}
+                >
+                  技能说明
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setCurrentPage('creation')}
+                >
+                  创建角色
+                </Button>
+              </>
+            )}
+            {currentPage === 'skills' && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setCurrentPage('sheet')}
+              >
+                返回角色卡
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -52,6 +75,7 @@ function App() {
             onCancel={handleCreationCancel}
           />
         )}
+        {currentPage === 'skills' && <SkillsReferencePage />}
       </main>
     </div>
   )

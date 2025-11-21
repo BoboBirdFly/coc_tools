@@ -3,6 +3,7 @@ import type { AttributeMap } from '@schema/character'
 import { ATTRIBUTE_NAMES } from '@data/i18n'
 import { ATTRIBUTE_RULES } from '@data/constants'
 import { roll3d6x5, roll2d6Plus6x5 } from '@utils/dice'
+import { Button, PageHeader, StatCard, Card } from '@components/ui'
 import styles from './CharacterCreation.module.css'
 
 type FateCreationProps = {
@@ -58,13 +59,8 @@ const FateCreation = ({ onComplete, onBack }: FateCreationProps) => {
   }
 
   return (
-    <div className={styles.fateCreation}>
-      <div className={styles.header}>
-        <button className={styles.backButton} onClick={onBack}>
-          ← 返回
-        </button>
-        <h2 className={styles.title}>天命车卡</h2>
-      </div>
+    <Card variant="default" padding="md" className={styles.fateCreation}>
+      <PageHeader title="天命车卡" onBack={onBack} />
 
       <div className={styles.content}>
         {!attributes && !isGenerating && (
@@ -72,12 +68,9 @@ const FateCreation = ({ onComplete, onBack }: FateCreationProps) => {
             <p className={styles.hint}>
               点击下方按钮随机生成角色属性
             </p>
-            <button
-              className={styles.generateButton}
-              onClick={generateAttributes}
-            >
+            <Button variant="primary" size="lg" onClick={generateAttributes}>
               🎲 生成属性
-            </button>
+            </Button>
           </div>
         )}
 
@@ -94,34 +87,27 @@ const FateCreation = ({ onComplete, onBack }: FateCreationProps) => {
               {Object.entries(attributes).map(([key, value]) => {
                 const attrKey = key as keyof AttributeMap
                 return (
-                  <div key={key} className={styles.attributeCard}>
-                    <span className={styles.attributeName}>
-                      {ATTRIBUTE_NAMES[attrKey]}
-                    </span>
-                    <span className={styles.attributeValue}>{value}</span>
-                  </div>
+                  <StatCard
+                    key={key}
+                    label={ATTRIBUTE_NAMES[attrKey]}
+                    value={value}
+                  />
                 )
               })}
             </div>
 
             <div className={styles.actions}>
-              <button
-                className={styles.regenerateButton}
-                onClick={generateAttributes}
-              >
+              <Button variant="secondary" onClick={generateAttributes}>
                 🔄 重新生成
-              </button>
-              <button
-                className={styles.confirmButton}
-                onClick={handleConfirm}
-              >
+              </Button>
+              <Button variant="primary" onClick={handleConfirm}>
                 确认属性 →
-              </button>
+              </Button>
             </div>
           </>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 

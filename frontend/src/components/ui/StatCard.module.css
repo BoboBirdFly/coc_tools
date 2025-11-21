@@ -1,0 +1,60 @@
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  background: var(--color-bg-secondary, #f9f9f9);
+  transition: all 0.2s;
+}
+
+.statCard:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 4px rgba(139, 46, 92, 0.2);
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1.2;
+}
+
+.note {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #666);
+}
+
+/* 变体 */
+.highlight {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.highlight .label,
+.highlight .note {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.highlight .value {
+  color: white;
+}
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  .statCard {
+    padding: 0.625rem;
+  }
+
+  .value {
+    font-size: 1.25rem;
+  }
+}
+

@@ -1,13 +1,38 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
-  --color-bg: #f4f6fb;
-  --color-panel: #ffffff;
-  --color-border: #d8dee9;
-  --color-primary: #4f46e5;
-  --color-text: #1f2937;
-  --color-muted: #6b7280;
+
+  /* 深红深紫主题色彩 */
+  --color-primary: #8b2e5c; /* 深红紫色 */
+  --color-primary-dark: #6b1f44; /* 更深的红紫色 */
+  --color-primary-light: #a84d7a; /* 较亮的红紫色 */
+  --color-secondary: #6b2c91; /* 深紫色 */
+  --color-secondary-dark: #4d1f6b; /* 更深的紫色 */
+  --color-accent: #9d3a6b; /* 强调色（红紫混合） */
+  --color-accent-dark: #7a2d52; /* 更深的强调色 */
+
+  /* 背景色（深色系） */
+  --color-bg: #1a0f1a; /* 深紫黑背景 */
+  --color-bg-secondary: #2d1f2d; /* 次要背景（稍亮） */
+  --color-bg-hover: #3d2a3d; /* 悬停背景 */
+  --color-panel: #2a1f2a; /* 面板背景（深紫灰） */
+  --color-panel-elevated: #352535; /* 提升的面板背景 */
+
+  /* 边框和分割线 */
+  --color-border: #4a2f4a; /* 边框色（深紫） */
+  --color-border-light: #5a3f5a; /* 浅边框 */
+
+  /* 文本颜色 */
+  --color-text: #f5e6f0; /* 主文本（浅紫白） */
+  --color-text-secondary: #c9a8c0; /* 次要文本（中紫） */
+  --color-muted: #9d7a9d; /* 弱化文本（灰紫） */
+
+  /* 状态颜色 */
+  --color-success: #4a8b5c; /* 成功（深绿） */
+  --color-error: #8b4a4a; /* 错误（深红） */
+  --color-warning: #8b7a4a; /* 警告（深黄） */
+  --color-info: #5a7a9d; /* 信息（深蓝） */
 }
 
 *,

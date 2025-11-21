@@ -1,0 +1,51 @@
+.container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 1rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-panel);
+  transition: all 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(139, 46, 92, 0.3);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color-bg-secondary);
+}
+
+.controlButton {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  .input {
+    min-height: 44px; /* 触摸目标最小尺寸 */
+  }
+
+  .controlButton {
+    min-width: 44px;
+    height: 44px;
+  }
+}
+

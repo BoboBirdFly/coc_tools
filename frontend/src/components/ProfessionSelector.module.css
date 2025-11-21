@@ -11,32 +11,32 @@
   justify-content: space-between;
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: white;
+  background: var(--color-panel);
   cursor: pointer;
   transition: border-color 0.2s;
 }
 
 .trigger:hover,
 .trigger:focus {
-  border-color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
   outline: none;
 }
 
 .triggerText {
   flex: 1;
   text-align: left;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .variant {
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   font-size: 0.9em;
 }
 
 .arrow {
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   font-size: 0.8em;
   margin-left: 0.5rem;
 }
@@ -48,10 +48,10 @@
   left: 0;
   right: 0;
   margin-top: 0.25rem;
-  background: white;
-  border: 1px solid var(--color-border, #ddd);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   z-index: 1000;
   max-height: 60vh;
   display: flex;
@@ -61,20 +61,26 @@
 /* 搜索框 */
 .searchBox {
   padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border, #eee);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .searchInput {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   font-size: 0.9rem;
+  background: var(--color-panel);
+  color: var(--color-text);
+}
+
+.searchInput::placeholder {
+  color: var(--color-muted);
 }
 
 .searchInput:focus {
   outline: none;
-  border-color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
 }
 
 /* 过滤器 */
@@ -82,28 +88,29 @@
   display: flex;
   gap: 0.5rem;
   padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border, #eee);
+  border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
 }
 
 .filterBtn {
   padding: 0.375rem 0.75rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: white;
+  background: var(--color-panel);
+  color: var(--color-text);
   cursor: pointer;
   font-size: 0.875rem;
   transition: all 0.2s;
 }
 
 .filterBtn:hover {
-  background: var(--color-bg-hover, #f5f5f5);
+  background: var(--color-bg-hover);
 }
 
 .filterBtn.active {
-  background: var(--color-primary, #007bff);
+  background: var(--color-primary);
   color: white;
-  border-color: var(--color-primary, #007bff);
+  border-color: var(--color-primary);
 }
 
 /* 职业列表 */
@@ -115,18 +122,18 @@
 
 .item {
   padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border, #eee);
+  border-bottom: 1px solid var(--color-border);
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .item:hover {
-  background: var(--color-bg-hover, #f5f5f5);
+  background: var(--color-bg-hover);
 }
 
 .item.selected {
-  background: var(--color-primary-light, #e7f3ff);
-  border-left: 3px solid var(--color-primary, #007bff);
+  background: rgba(139, 46, 92, 0.15);
+  border-left: 3px solid var(--color-primary);
 }
 
 .itemHeader {
@@ -138,41 +145,41 @@
 
 .itemName {
   font-weight: 500;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .eraTag {
   padding: 0.125rem 0.5rem;
-  background: var(--color-bg-secondary, #f0f0f0);
+  background: var(--color-bg-secondary);
   border-radius: 12px;
   font-size: 0.75rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .itemVariant {
   margin-top: 0.25rem;
   font-size: 0.875rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 /* 职业信息卡片 */
 .infoCard {
   margin-top: 0.75rem;
   padding: 0.75rem;
-  background: var(--color-bg-secondary, #f9f9f9);
+  background: var(--color-bg-secondary);
   border-radius: 4px;
-  border-left: 3px solid var(--color-primary, #007bff);
+  border-left: 3px solid var(--color-primary);
 }
 
 .description {
   margin: 0 0 0.5rem 0;
-  color: var(--color-text, #333);
+  color: var(--color-text);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -182,7 +189,7 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .metaItem {

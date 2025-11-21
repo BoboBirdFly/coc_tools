@@ -73,7 +73,7 @@ const deriveSecondaryStats = (attributes: AttributeMap, profession?: Profession)
 /**
  * 评估职业技能公式（如 EDU×2 + APP×2）
  */
-const evaluateSkillFormulas = (attributes: AttributeMap, profession: Profession) => {
+export const evaluateSkillFormulas = (attributes: AttributeMap, profession: Profession) => {
   return profession.skillFormulas.reduce((sum, part) => {
     const attributeValue = attributes[part.attribute]
     return sum + attributeValue * part.multiplier

@@ -19,7 +19,7 @@ export interface SkillDefinition {
   id: string
   name: string
   category: SkillCategory
-  base: number
+  base: number // 技能基础值（角色卡上显示的初始值，COC7th规则）
   description?: string
 }
 
