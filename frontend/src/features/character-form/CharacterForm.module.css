@@ -26,8 +26,15 @@
 
 .attributeGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  /* 移动端优先：小屏幕 2 列，大屏幕自适应 */
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
+}
+
+@media (min-width: 480px) {
+  .attributeGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
 }
 
 .attributeCard {
@@ -61,4 +68,3 @@
   font-size: 0.82rem;
   color: var(--color-muted);
 }
-

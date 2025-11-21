@@ -2,7 +2,7 @@ export type AttributeKey = 'str' | 'con' | 'dex' | 'int' | 'pow' | 'siz' | 'app'
 
 export type AttributeMap = Record<AttributeKey, number>
 
-export type SecondaryStatKey = 'hp' | 'san' | 'luck' | 'mp'
+export type SecondaryStatKey = 'hp' | 'san' | 'luck' | 'mp' | 'mov'
 
 export type SecondaryStats = Record<SecondaryStatKey, number>
 
@@ -33,6 +33,24 @@ export interface EquipmentItem {
   weight?: number
 }
 
+export interface SkillFormulaPart {
+  attribute: AttributeKey
+  multiplier: number
+}
+
+export interface DifficultyThreshold {
+  regular: number
+  hard: number
+  extreme: number
+}
+
+export type AttributeThresholds = Record<AttributeKey, DifficultyThreshold>
+
+export interface SkillBudget {
+  occupation: number
+  personal: number
+}
+
 export interface Profession {
   id: string
   name: string
@@ -40,6 +58,7 @@ export interface Profession {
   signatureSkills: string[]
   attributeFocus: Partial<Record<AttributeKey, number>>
   hpModifier: number
+  skillFormulas: SkillFormulaPart[]
 }
 
 export interface BaseCharacterInput {
@@ -53,6 +72,8 @@ export interface CalculatedCharacter {
   professionId: string
   attributes: AttributeMap
   secondaryStats: SecondaryStats
-  skillPoints: number
+  thresholds: AttributeThresholds
+  skillBudgets: SkillBudget
+  signatureSkills: SkillDefinition[]
 }
 

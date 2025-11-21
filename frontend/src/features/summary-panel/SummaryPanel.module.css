@@ -9,6 +9,8 @@
   border-radius: 1rem;
   padding: 1rem;
   background: #fefefe;
+  /* 移动端优化：确保卡片在小屏幕上不会溢出 */
+  min-width: 0;
 }
 
 .section-title {
@@ -20,8 +22,15 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* 移动端优先：小屏幕 2 列，大屏幕自适应 */
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
+}
+
+@media (min-width: 480px) {
+  .grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
 }
 
 .stat {
@@ -40,10 +49,47 @@
   font-weight: 700;
 }
 
+.stat-note {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
 .list {
   margin: 0.25rem 0 0;
   padding-left: 1rem;
   color: var(--color-muted);
   font-size: 0.85rem;
+  /* 移动端优化：列表项间距 */
+  line-height: 1.6;
 }
 
+.list li {
+  margin-bottom: 0.25rem;
+}
+
+.exportButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.exportButton:hover {
+  opacity: 0.9;
+}
+
+.exportButton:active {
+  opacity: 0.8;
+}
+
+@media (max-width: 480px) {
+  .exportButton {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}
