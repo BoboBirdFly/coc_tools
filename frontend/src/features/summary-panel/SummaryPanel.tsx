@@ -1,30 +1,11 @@
 import type { CalculatedCharacter, AttributeKey, Profession } from '@schema/character'
+import { ATTRIBUTE_NAMES, SECONDARY_NAMES, UI_TEXT } from '@data/i18n'
+import { EXPORT_CONFIG } from '@data/constants'
 import styles from './SummaryPanel.module.css'
 
 type SummaryPanelProps = {
   character: CalculatedCharacter
   profession?: Profession
-}
-
-// 属性中文名称映射（COC7th 标准术语）
-const ATTRIBUTE_NAMES: Record<AttributeKey, string> = {
-  str: '力量',
-  con: '体质',
-  dex: '敏捷',
-  int: '智力',
-  pow: '意志',
-  siz: '体型',
-  app: '外貌',
-  edu: '教育',
-}
-
-// 二级属性中文名称
-const SECONDARY_NAMES: Record<string, string> = {
-  hp: '生命值',
-  san: '理智值',
-  luck: '幸运',
-  mp: '魔法值',
-  mov: '移动力',
 }
 
 const SummaryPanel = ({ character }: SummaryPanelProps) => {
@@ -48,7 +29,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
     const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${character.name || '角色卡'}_${new Date().toISOString().split('T')[0]}.json`
+    link.download = `${character.name || EXPORT_CONFIG.defaultFileName}_${new Date().toISOString().split('T')[0]}${EXPORT_CONFIG.fileExtension}`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -62,9 +43,9 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
         <button
           onClick={handleExportJSON}
           className={styles.exportButton}
-          title="导出角色卡为 JSON（供备份）"
+          title={UI_TEXT.exportButtonTitle}
         >
-          导出 JSON
+          {UI_TEXT.exportButtonLabel}
         </button>
       </div>
       <div className={styles.stack}>
@@ -106,12 +87,12 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
             <div className={styles.stat}>
               <span className={styles['stat-label']}>职业技能点</span>
               <strong className={styles['stat-value']}>{character.skillBudgets.occupation}</strong>
-              <span className={styles['stat-note']}>按 COC7th 职业配点</span>
+              <span className={styles['stat-note']}>{UI_TEXT.skillPointsOccupation}</span>
             </div>
             <div className={styles.stat}>
               <span className={styles['stat-label']}>兴趣技能点</span>
               <strong className={styles['stat-value']}>{character.skillBudgets.personal}</strong>
-              <span className={styles['stat-note']}>INT × 2</span>
+              <span className={styles['stat-note']}>{UI_TEXT.skillPointsPersonal}</span>
             </div>
             {character.signatureSkills.length > 0 && (
               <div className={styles.stat}>

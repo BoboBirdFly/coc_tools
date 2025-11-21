@@ -1,17 +1,7 @@
 import type { AttributeKey } from '@schema/character'
+import { ATTRIBUTE_NAMES } from '@data/i18n'
+import { ATTRIBUTE_RULES } from '@data/constants'
 import styles from './AttributeInput.module.css'
-
-// 属性中文名称映射
-const ATTRIBUTE_NAMES: Record<AttributeKey, string> = {
-  str: '力量',
-  con: '体质',
-  dex: '敏捷',
-  int: '智力',
-  pow: '意志',
-  siz: '体型',
-  app: '外貌',
-  edu: '教育',
-}
 
 type AttributeInputProps = {
   attribute: AttributeKey
@@ -30,9 +20,9 @@ const AttributeInput = ({
   attribute,
   value,
   onChange,
-  min = 15,
-  max = 90,
-  step = 5,
+  min = ATTRIBUTE_RULES.min,
+  max = ATTRIBUTE_RULES.max,
+  step = ATTRIBUTE_RULES.step,
 }: AttributeInputProps) => {
   const validate = (rawValue: number): number => {
     if (rawValue < min) return min

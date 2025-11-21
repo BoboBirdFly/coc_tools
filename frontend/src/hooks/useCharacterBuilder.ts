@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer } from 'react'
-import { DEFAULT_ATTRIBUTES } from '@data/constants'
+import { DEFAULT_ATTRIBUTES, STORAGE_KEYS } from '@data/constants'
+import { UI_TEXT } from '@data/i18n'
 import { PROFESSIONS } from '@data/professions'
 import { calculateCharacter } from '@services/calculator'
 import type { BaseCharacterInput, CalculatedCharacter } from '@schema/character'
@@ -20,8 +21,8 @@ type BuilderAction =
       payload: { key: keyof BaseCharacterInput['attributes']; value: number }
   } // 更新单个属性值
 
-// localStorage 存储键名
-const STORAGE_KEY = 'coc-character-builder'
+// 使用公共配置的存储键名
+const STORAGE_KEY = STORAGE_KEYS.characterBuilder
 
 /**
  * 根据表单数据计算角色属性（调用 calculator 服务）
@@ -43,7 +44,7 @@ const makeInitialState = (): BuilderState => {
         attributes: { ...DEFAULT_ATTRIBUTES, ...saved.attributes },
       }
     : {
-        name: '未命名调查员',
+      name: UI_TEXT.defaultCharacterName,
         professionId: PROFESSIONS[0].id,
         attributes: { ...DEFAULT_ATTRIBUTES },
       }
