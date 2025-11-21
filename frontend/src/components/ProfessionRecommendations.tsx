@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import type { AttributeMap } from '@schema/character'
 import type { FullProfession } from '@data/professions-full'
-import { Card, StatCard } from './ui'
+import { Card, StatCard, Button } from './ui'
 import styles from './ProfessionRecommendations.module.css'
 
 /**
@@ -32,6 +32,8 @@ const ProfessionRecommendations = ({
   professions,
   onSelect,
 }: ProfessionRecommendationsProps) => {
+  const [isExpanded, setIsExpanded] = useState(true)
+
   // 计算每个职业的技能点数并排序
   const recommendedProfessions = useMemo(() => {
     const professionScores = professions.map((profession) => {
@@ -56,38 +58,55 @@ const ProfessionRecommendations = ({
 
   return (
     <div className={styles.container}>
-      <h3 className={styles.title}>💡 推荐职业（根据你的属性）</h3>
-      <p className={styles.subtitle}>
-        以下职业基于你当前的属性值，将获得最多的职业技能点数
-      </p>
-      <div className={styles.recommendations}>
-        {recommendedProfessions.map((item, index) => (
-          <Card
-            key={item.profession.id}
-            variant="outlined"
-            padding="sm"
-            className={styles.recommendationCard}
-            onClick={() => onSelect(item.profession.id)}
+      <div className={styles.header}>
+        <div className={styles.headerContent}>
+          <h3 className={styles.title}>💡 推荐职业（根据你的属性）</h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={styles.toggleButton}
           >
-            <div className={styles.cardHeader}>
-              <div className={styles.rank}>#{index + 1}</div>
-              <div className={styles.professionInfo}>
-                <h4 className={styles.professionName}>{item.profession.name}</h4>
-                <p className={styles.professionDescription}>
-                  {item.profession.description}
-                </p>
-              </div>
-            </div>
-            <div className={styles.cardFooter}>
-              <StatCard
-                label="职业技能点"
-                value={item.skillPoints}
-                variant="highlight"
-              />
-            </div>
-          </Card>
-        ))}
+            {isExpanded ? '收起' : '展开'}
+            <span className={styles.toggleIcon}>{isExpanded ? '▲' : '▼'}</span>
+          </Button>
+        </div>
+        {isExpanded && (
+          <p className={styles.subtitle}>
+            以下职业基于你当前的属性值，将获得最多的职业技能点数
+          </p>
+        )}
       </div>
+      {isExpanded && (
+        <div className={styles.recommendations}>
+          {recommendedProfessions.map((item, index) => (
+            <Card
+              key={item.profession.id}
+              variant="outlined"
+              padding="sm"
+              className={styles.recommendationCard}
+              onClick={() => onSelect(item.profession.id)}
+            >
+              <div className={styles.cardHeader}>
+                <div className={styles.rank}>#{index + 1}</div>
+                <div className={styles.professionInfo}>
+                  <h4 className={styles.professionName}>{item.profession.name}</h4>
+                  <p className={styles.professionDescription}>
+                    {item.profession.description}
+                  </p>
+                </div>
+              </div>
+              <div className={styles.cardFooter}>
+                <StatCard
+                  label="职业技能点"
+                  value={item.skillPoints}
+                  variant="highlight"
+                />
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

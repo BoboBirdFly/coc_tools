@@ -2,23 +2,64 @@
   margin-bottom: 2rem;
 }
 
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
 .title {
-  margin: 0 0 0.5rem 0;
+  margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--color-text, #333);
+  color: var(--color-text);
+  flex: 1;
+}
+
+.toggleButton {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.toggleIcon {
+  font-size: 0.75rem;
+  transition: transform 0.2s;
 }
 
 .subtitle {
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   font-size: 0.875rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .recommendations {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  margin-top: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .recommendationCard {
@@ -80,6 +121,16 @@
 
 /* 移动端优化 */
 @media (max-width: 640px) {
+  .headerContent {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .toggleButton {
+    align-self: flex-end;
+  }
+
   .cardHeader {
     flex-direction: column;
     gap: 0.75rem;

@@ -96,7 +96,7 @@ const calculateSkillPoints = (attributes: AttributeMap, profession?: Profession)
  * - 职业：由职业公式（通常是 EDU×2 等）决定
  * - 兴趣：INT × 2
  */
-const calculateSkillBudgets = (attributes: AttributeMap, profession?: Profession): SkillBudget => {
+export const calculateSkillBudgets = (attributes: AttributeMap, profession?: Profession): SkillBudget => {
   const occupation = calculateSkillPoints(attributes, profession)
   const personal = attributes.int * 2
   return { occupation, personal }

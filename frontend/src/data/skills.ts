@@ -343,5 +343,89 @@ export const SKILL_MAP = SKILLS.reduce<Record<string, SkillDefinition>>((acc, sk
   return acc
 }, {})
 
+// 技能名称到ID的映射（用于从中文名称查找技能ID）
+export const SKILL_NAME_TO_ID = SKILLS.reduce<Record<string, string>>((acc, skill) => {
+  // 直接映射技能名称
+  acc[skill.name] = skill.id
+  
+  // 别名映射（处理职业数据中使用的各种名称变体）
+  switch (skill.name) {
+    case '图书馆使用':
+      acc['图书馆'] = skill.id
+      break
+    case '汽车驾驶':
+      acc['驾驶'] = skill.id
+      acc['汽车'] = skill.id
+      break
+    case '射击（手枪）':
+      acc['射击'] = skill.id
+      acc['手枪'] = skill.id
+      break
+    case '射击（步枪/散弹枪）':
+      acc['步枪'] = skill.id
+      acc['散弹枪'] = skill.id
+      break
+    case '格斗':
+      acc['斗殴'] = skill.id
+      break
+    case '艺术/手艺':
+      acc['艺术'] = skill.id
+      acc['手艺'] = skill.id
+      acc['工艺'] = skill.id
+      break
+    case '科学':
+      acc['科学（任一）'] = skill.id
+      break
+    case '语言':
+      acc['外语'] = skill.id
+      break
+    case '母语':
+      acc['母语'] = skill.id
+      break
+    case '驾驶':
+      acc['驾驶（任一）'] = skill.id
+      break
+    case '生存':
+      acc['生存（任一）'] = skill.id
+      break
+    case '考古学':
+      acc['考古'] = skill.id
+      break
+    case '机械维修':
+      acc['机械'] = skill.id
+      break
+    case '电气维修':
+      acc['电子学'] = skill.id
+      acc['电气'] = skill.id
+      break
+    case '博物学':
+      acc['博物'] = skill.id
+      break
+  }
+  
+  return acc
+}, {})
+
 export const getSkillById = (id: string) => SKILL_MAP[id]
+
+/**
+ * 根据中文技能名称获取技能ID
+ */
+export const getSkillIdByName = (name: string): string | undefined => {
+  // 先尝试直接匹配
+  if (SKILL_NAME_TO_ID[name]) {
+    return SKILL_NAME_TO_ID[name]
+  }
+  
+  // 处理带括号的情况，如"艺术（表演）"、"科学（生物学）"
+  const match = name.match(/^([^（(]+)/)
+  if (match) {
+    const baseName = match[1].trim()
+    if (SKILL_NAME_TO_ID[baseName]) {
+      return SKILL_NAME_TO_ID[baseName]
+    }
+  }
+  
+  return undefined
+}
 

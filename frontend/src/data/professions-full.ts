@@ -1,5 +1,6 @@
 import type { Profession } from '@schema/character'
 import { ATTRIBUTE_NAME_TO_KEY } from '@data/i18n'
+import { getSkillIdByName } from './skills'
 
 /**
  * COC7th 完整职业配置
@@ -73,14 +74,34 @@ const parseCreditRange = (rangeStr: string): CreditRange => {
 /**
  * 解析技能列表字符串
  * 格式："会计，法律，图书馆，聆听，说服，侦查，任意其他两项个人或时代特长"
+ * 返回技能ID数组
  */
 const parseSkills = (skillsStr: string): string[] => {
   // 移除"任意其他X项"等描述，只保留具体技能
   const cleanStr = skillsStr.replace(/任意.*?特长/g, '').trim()
-  return cleanStr
+  const skillNames = cleanStr
     .split(/[，,]/)
     .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.includes('任意'))
+    .filter(s => s.length > 0 && !s.includes('任意') && !s.includes('或'))
+
+  // 将中文技能名转换为技能ID
+  const skillIds: string[] = []
+  for (const name of skillNames) {
+    const skillId = getSkillIdByName(name)
+    if (skillId) {
+      skillIds.push(skillId)
+    } else {
+      // 如果找不到，尝试处理带括号的情况，如"艺术（表演）" -> "艺术"
+      const baseName = name.replace(/[（(].*?[）)]/g, '').trim()
+      const baseSkillId = getSkillIdByName(baseName)
+      if (baseSkillId) {
+        skillIds.push(baseSkillId)
+      }
+      // 如果还是找不到，跳过（避免错误，但技能可能缺失）
+    }
+  }
+
+  return skillIds
 }
 
 // COC7th 完整职业数据（从调查员手册提取）

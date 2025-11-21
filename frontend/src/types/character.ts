@@ -65,7 +65,11 @@ export interface BaseCharacterInput {
   name: string
   professionId: string
   attributes: AttributeMap
+  skills?: SkillAllocation // 技能分配（可选，车卡时分配）
 }
+
+// 技能分配：记录每个技能分配的点数
+export type SkillAllocation = Record<string, number> // skillId -> allocated points
 
 export interface CalculatedCharacter {
   name: string

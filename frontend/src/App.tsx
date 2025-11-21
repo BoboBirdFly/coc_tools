@@ -14,10 +14,15 @@ function App() {
   const { actions } = useCharacterBuilder()
 
   // 车卡完成，跳转到角色卡页面
-  const handleCreationComplete = (attributes: AttributeMap, professionId: string) => {
+  const handleCreationComplete = (
+    attributes: AttributeMap,
+    professionId: string,
+    skills?: Record<string, number>,
+  ) => {
     actions.updateForm({
       attributes,
       professionId,
+      skills,
     })
     setCurrentPage('sheet')
   }

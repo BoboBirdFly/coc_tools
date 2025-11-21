@@ -1,8 +1,22 @@
-/* 车卡页面容器 */
+/* 车卡页面容器 - 统一所有步骤的容器宽度 */
 .characterCreation {
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 1.5rem;
+  width: 100%;
+}
+
+/* 确保所有步骤的Card组件宽度一致 */
+.characterCreation > * {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .characterCreation {
+    padding: 0.75rem;
+    max-width: 100%;
+  }
 }
 
 /* 通用头部 */
@@ -35,9 +49,12 @@
   border-color: var(--color-primary);
 }
 
-/* 车卡方式选择 */
+/* 车卡方式选择 - 统一宽度 */
 .methodSelector {
   text-align: center;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .methodSelector .title {
@@ -52,7 +69,7 @@
 
 .methodGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -115,13 +132,12 @@
   font-weight: 600;
 }
 
-/* 天命车卡 */
+/* 天命车卡和购点车卡 - 统一宽度 */
 .fateCreation,
 .pointBuyCreation {
-  background: var(--color-panel, white);
-  border-radius: 12px;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border, #ddd);
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .content {
@@ -341,16 +357,17 @@
   font-size: 0.9rem;
 }
 
-/* 职业选择步骤 */
+/* 职业选择步骤 - 统一宽度 */
 .professionStepContainer {
   width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .professionStep {
-  background: var(--color-panel, white);
-  border-radius: 12px;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border, #ddd);
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .selectorTitle {
@@ -389,7 +406,16 @@
 /* 移动端优化 */
 @media (max-width: 768px) {
   .characterCreation {
-    padding: 1rem;
+    padding: 0.5rem;
+  }
+
+  /* 统一所有步骤在移动端的宽度 */
+  .methodSelector,
+  .fateCreation,
+  .pointBuyCreation,
+  .professionStep {
+    width: 100%;
+    max-width: 100%;
   }
 
   .methodGrid {

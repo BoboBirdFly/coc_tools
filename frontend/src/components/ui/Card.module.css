@@ -45,12 +45,16 @@
     border-radius: 8px;
   }
 
+  .padding-sm {
+    padding: 0.625rem;
+  }
+
   .padding-md {
-    padding: 1rem;
+    padding: 0.875rem;
   }
 
   .padding-lg {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 }
 
