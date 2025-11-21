@@ -19,7 +19,12 @@ const CharacterSheetPage = () => {
           onChange={actions.updateForm}
           onAttributeChange={actions.updateAttribute}
         />
-        <SummaryPanel character={calculated} profession={profession} />
+        <SummaryPanel
+          character={calculated}
+          profession={profession}
+          attributes={form.attributes}
+          skillAllocation={form.skills}
+        />
       </div>
     </>
   )

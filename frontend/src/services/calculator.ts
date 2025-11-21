@@ -120,7 +120,7 @@ const buildAttributeThresholds = (attributes: AttributeMap): AttributeThresholds
   }, {} as AttributeThresholds)
 
 /**
- * 解析职业熟练技能（从技能 ID 映射到完整定义）
+ * 解析职业职业技能（从技能 ID 映射到完整定义）
  */
 const resolveSignatureSkills = (profession?: Profession): SkillDefinition[] =>
   profession
@@ -135,7 +135,7 @@ const resolveSignatureSkills = (profession?: Profession): SkillDefinition[] =>
  * 2. 计算二级属性（HP/SAN/MP/MOV）
  * 3. 计算技能点预算（职业/兴趣）
  * 4. 构建属性检定阈值
- * 5. 解析职业熟练技能
+ * 5. 解析职业职业技能
  */
 export const calculateCharacter = (
   form: BaseCharacterInput,

@@ -43,7 +43,7 @@ const SkillAllocationComponent = ({
     const skills = getOccupationSkillList(profession)
     // 调试：检查技能列表
     if (skills.length === 0 && profession.signatureSkills.length > 0) {
-      console.warn('职业技能列表为空，但职业有熟练技能:', {
+      console.warn('职业技能列表为空，但职业有职业技能:', {
         profession: profession.name,
         signatureSkills: profession.signatureSkills,
         mappedSkills: skills,

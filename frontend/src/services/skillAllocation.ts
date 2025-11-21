@@ -11,7 +11,7 @@ export const SPECIAL_SKILLS = {
 
 // 技能最大值限制
 export const SKILL_MAX_VALUES = {
-  SIGNATURE_SKILL: 80, // 职业熟练技能最大80
+  SIGNATURE_SKILL: 80, // 职业职业技能最大80
   NORMAL_SKILL: 50, // 普通技能最大50
 } as const
 
@@ -68,7 +68,7 @@ export const getSkillMaxValue = (
   skillId: string,
   profession?: Profession,
 ): number => {
-  // 职业熟练技能最大80
+  // 职业职业技能最大80
   if (profession?.signatureSkills.includes(skillId)) {
     return SKILL_MAX_VALUES.SIGNATURE_SKILL
   }
@@ -131,12 +131,12 @@ export const calculateUsedSkillPoints = (
     const isSignatureSkill = profession?.signatureSkills.includes(skillId) ?? false
 
     if (type === 'occupation') {
-      // 职业技能点只能分配给职业熟练技能
+      // 职业技能点只能分配给职业职业技能
       if (isSignatureSkill) {
         used += points
       }
     } else {
-      // 兴趣技能点可以分配给所有技能（除了职业熟练技能）
+      // 兴趣技能点可以分配给所有技能（除了职业职业技能）
       if (!isSignatureSkill) {
         used += points
       }

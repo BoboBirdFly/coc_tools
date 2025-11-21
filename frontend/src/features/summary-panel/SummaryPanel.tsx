@@ -1,15 +1,25 @@
-import type { CalculatedCharacter, AttributeKey, Profession } from '@schema/character'
-import { ATTRIBUTE_NAMES, SECONDARY_NAMES, UI_TEXT } from '@data/i18n'
+import { useMemo } from 'react'
+import type { CalculatedCharacter, AttributeKey, Profession, AttributeMap, SkillAllocation } from '@schema/character'
+import { ATTRIBUTE_NAMES, SECONDARY_NAMES, UI_TEXT, SKILL_CATEGORY_NAMES } from '@data/i18n'
 import { EXPORT_CONFIG } from '@data/constants'
+import { SKILLS } from '@data/skills'
+import { calculateSkillInitialValue, calculateSkillCurrentValue } from '@services/skillAllocation'
 import { Button, StatCard, Card } from '@components/ui'
 import styles from './SummaryPanel.module.css'
 
 type SummaryPanelProps = {
   character: CalculatedCharacter
   profession?: Profession
+  attributes: AttributeMap
+  skillAllocation?: SkillAllocation
 }
 
-const SummaryPanel = ({ character }: SummaryPanelProps) => {
+const SummaryPanel = ({
+  character,
+  profession,
+  attributes,
+  skillAllocation = {},
+}: SummaryPanelProps) => {
   // 渲染属性检定阈值提示
   const renderThresholdNote = (attributeKey: string): string | null => {
     const threshold = character.thresholds[attributeKey as keyof typeof character.thresholds]
@@ -18,6 +28,40 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
     }
     return `困难 ${threshold.hard} · 极难 ${threshold.extreme}`
   }
+
+  // 计算所有技能的当前值、困难成功值、极难成功值
+  const skillsWithValues = useMemo(() => {
+    return SKILLS.map((skill) => {
+      const initialValue = calculateSkillInitialValue(skill.id, attributes)
+      const currentValue = calculateSkillCurrentValue(skill.id, attributes, skillAllocation)
+      const hardValue = Math.floor(currentValue / 2)
+      const extremeValue = Math.floor(currentValue / 5)
+
+      return {
+        ...skill,
+        initialValue,
+        currentValue,
+        hardValue,
+        extremeValue,
+      }
+    })
+  }, [attributes, skillAllocation])
+
+  // 按分类分组技能
+  const skillsByCategory = useMemo(() => {
+    const grouped: Record<string, typeof skillsWithValues> = {}
+    skillsWithValues.forEach((skill) => {
+      if (!grouped[skill.category]) {
+        grouped[skill.category] = []
+      }
+      grouped[skill.category].push(skill)
+    })
+    // 对每个分类内的技能按名称排序
+    for (const category in grouped) {
+      grouped[category].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+    }
+    return grouped
+  }, [skillsWithValues])
 
   // 导出角色卡为 JSON（供备份）
   const handleExportJSON = () => {
@@ -78,7 +122,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
         </Card>
 
         <Card variant="default" padding="md">
-          <p className={styles['section-title']}>技能点与熟练技能</p>
+          <p className={styles['section-title']}>技能点与职业技能</p>
           <div className={styles.grid}>
             <StatCard
               label="职业技能点"
@@ -92,7 +136,7 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
             />
             {character.signatureSkills.length > 0 && (
               <div className={styles.stat}>
-                <span className={styles['stat-label']}>熟练技能</span>
+                <span className={styles['stat-label']}>职业技能</span>
                 <ul className={styles.list}>
                   {character.signatureSkills.map((skill) => (
                     <li key={skill.id}>
@@ -102,6 +146,36 @@ const SummaryPanel = ({ character }: SummaryPanelProps) => {
                 </ul>
               </div>
             )}
+          </div>
+        </Card>
+
+        <Card variant="default" padding="md">
+          <p className={styles['section-title']}>技能表</p>
+          <div className={styles.skillsContainer}>
+            {Object.entries(skillsByCategory).map(([category, skills]) => (
+              <div key={category} className={styles.skillCategory}>
+                <h3 className={styles.categoryTitle}>
+                  {SKILL_CATEGORY_NAMES[category as keyof typeof SKILL_CATEGORY_NAMES]}
+                </h3>
+                <div className={styles.skillsTable}>
+                  {skills.map((skill) => (
+                    <div key={skill.id} className={styles.skillRow}>
+                      <div className={styles.skillNameCell}>
+                        <span className={styles.skillName}>{skill.name}</span>
+                        {profession?.signatureSkills.includes(skill.id) && (
+                          <span className={styles.signatureBadge}>职业</span>
+                        )}
+                      </div>
+                      <div className={styles.skillValuesCell}>
+                        <span className={styles.currentValue}>{skill.currentValue}</span>
+                        <span className={styles.hardValue}>困难 {skill.hardValue}</span>
+                        <span className={styles.extremeValue}>极难 {skill.extremeValue}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       </div>
