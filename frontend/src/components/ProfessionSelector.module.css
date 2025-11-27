@@ -168,15 +168,7 @@
   color: var(--color-text-secondary);
 }
 
-/* 职业信息卡片 */
-.infoCard {
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  background: var(--color-bg-secondary);
-  border-radius: 4px;
-  border-left: 3px solid var(--color-primary);
-}
-
+/* 职业描述内容样式 */
 .description {
   margin: 0 0 0.5rem 0;
   color: var(--color-text);

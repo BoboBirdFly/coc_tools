@@ -66,10 +66,33 @@ export interface BaseCharacterInput {
   professionId: string
   attributes: AttributeMap
   skills?: SkillAllocation // 技能分配（可选，车卡时分配）
+  background?: CharacterBackground // 背景信息
+  assets?: CharacterAssets // 资产信息
 }
 
 // 技能分配：记录每个技能分配的点数
 export type SkillAllocation = Record<string, number> // skillId -> allocated points
+
+// 角色背景信息
+export interface CharacterBackground {
+  appearance: string // 形象描述
+  ideology: string // 思想与信念
+  significantPeople: string // 重要之人
+  treasuredPossessions: string // 宝贵之物
+  significantLocations: string // 意义非凡之地
+  traits: string // 特质
+  phobiasAndManias: string // 恐惧症与躁狂症
+  thirdKindEncounters: string // 第三类接触
+  mythosKnowledge: string // 典籍、法术和神话造物
+  inventory: string // 携带物品
+}
+
+// 资产信息
+export interface CharacterAssets {
+  spendingLevel: string // 消费水平
+  cash: string // 现金
+  assets: string // 资产
+}
 
 export interface CalculatedCharacter {
   name: string

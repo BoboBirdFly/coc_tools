@@ -5,7 +5,6 @@ import {
   calculateSkillInitialValue,
   calculateSkillCurrentValue,
   validateSkillAllocation,
-  calculateUsedSkillPoints,
   getOccupationSkillList,
   getPersonalSkillList,
   canAllocateSkillPoints,
@@ -36,7 +35,15 @@ const SkillAllocationComponent = ({
   onBack,
 }: SkillAllocationProps) => {
   const [allocationType, setAllocationType] = useState<AllocationType>('occupation')
-  const [allocation, setAllocation] = useState<SkillAllocation>({})
+  // 分开跟踪职业点和兴趣点的分配（用于信用评级等两边都能加的技能）
+  const [occAllocation, setOccAllocation] = useState<SkillAllocation>({})
+  const [perAllocation, setPerAllocation] = useState<SkillAllocation>({})
+
+  // 合并后的分配（用于显示和最终提交）
+  const allocation: SkillAllocation = {}
+  for (const skillId of new Set([...Object.keys(occAllocation), ...Object.keys(perAllocation)])) {
+    allocation[skillId] = (occAllocation[skillId] || 0) + (perAllocation[skillId] || 0)
+  }
 
   // 获取技能列表
   const occupationSkills = useMemo(() => {
@@ -53,14 +60,14 @@ const SkillAllocationComponent = ({
   }, [profession])
   const personalSkills = useMemo(() => getPersonalSkillList(profession), [profession])
 
-  // 计算已使用的点数
+  // 计算已使用的点数（直接从各自的分配中累加）
   const usedOccupation = useMemo(
-    () => calculateUsedSkillPoints(allocation, 'occupation', profession),
-    [allocation, profession],
+    () => Object.values(occAllocation).reduce((sum, v) => sum + v, 0),
+    [occAllocation],
   )
   const usedPersonal = useMemo(
-    () => calculateUsedSkillPoints(allocation, 'personal', profession),
-    [allocation, profession],
+    () => Object.values(perAllocation).reduce((sum, v) => sum + v, 0),
+    [perAllocation],
   )
 
   // 剩余点数
@@ -89,20 +96,26 @@ const SkillAllocationComponent = ({
 
   // 调整技能点数
   const adjustSkillPoints = (skillId: string, delta: number) => {
-    const currentPoints = allocation[skillId] || 0
-    const newPoints = Math.max(0, currentPoints + delta)
+    const currentAlloc = allocationType === 'occupation' ? occAllocation : perAllocation
+    const setCurrentAlloc = allocationType === 'occupation' ? setOccAllocation : setPerAllocation
+
+    const currentTypePoints = currentAlloc[skillId] || 0
+    const newTypePoints = Math.max(0, currentTypePoints + delta)
+
+    // 计算总分配点数
+    const otherAlloc = allocationType === 'occupation' ? perAllocation : occAllocation
+    const totalNewPoints = newTypePoints + (otherAlloc[skillId] || 0)
 
     // 验证
     const validation = validateSkillAllocation(
       skillId,
-      newPoints,
+      totalNewPoints,
       attributes,
       allocation,
       profession,
     )
 
     if (!validation.valid) {
-      // 可以显示错误提示，这里先简单处理
       return
     }
 
@@ -113,10 +126,67 @@ const SkillAllocationComponent = ({
       if (delta > 0 && remainingPersonal < delta) return
     }
 
-    setAllocation((prev) => ({
+    setCurrentAlloc((prev) => ({
       ...prev,
-      [skillId]: newPoints,
+      [skillId]: newTypePoints,
     }))
+  }
+
+  // 随机分配技能点
+  const handleRandomAllocate = () => {
+    const newOccAllocation: SkillAllocation = {}
+    const newPerAllocation: SkillAllocation = {}
+
+    // 用于计算总分配（信用评级两边都能加）
+    const getTotalAllocated = (skillId: string) =>
+      (newOccAllocation[skillId] || 0) + (newPerAllocation[skillId] || 0)
+
+    // 随机分配职业技能点
+    let remainingOcc = skillBudgets.occupation
+    const occSkillIds = occupationSkills
+      .filter((s) => canAllocateSkillPoints(s.id))
+      .map((s) => s.id)
+
+    while (remainingOcc >= 5 && occSkillIds.length > 0) {
+      const randomIndex = Math.floor(Math.random() * occSkillIds.length)
+      const skillId = occSkillIds[randomIndex]
+
+      const initial = calculateSkillInitialValue(skillId, attributes)
+      const current = initial + getTotalAllocated(skillId)
+      const max = getSkillMaxValue(skillId, profession)
+
+      if (current + 5 <= max) {
+        newOccAllocation[skillId] = (newOccAllocation[skillId] || 0) + 5
+        remainingOcc -= 5
+      } else {
+        occSkillIds.splice(randomIndex, 1)
+      }
+    }
+
+    // 随机分配兴趣技能点
+    let remainingPer = skillBudgets.personal
+    const perSkillIds = personalSkills
+      .filter((s) => canAllocateSkillPoints(s.id))
+      .map((s) => s.id)
+
+    while (remainingPer >= 5 && perSkillIds.length > 0) {
+      const randomIndex = Math.floor(Math.random() * perSkillIds.length)
+      const skillId = perSkillIds[randomIndex]
+
+      const initial = calculateSkillInitialValue(skillId, attributes)
+      const current = initial + getTotalAllocated(skillId)
+      const max = getSkillMaxValue(skillId, profession)
+
+      if (current + 5 <= max) {
+        newPerAllocation[skillId] = (newPerAllocation[skillId] || 0) + 5
+        remainingPer -= 5
+      } else {
+        perSkillIds.splice(randomIndex, 1)
+      }
+    }
+
+    setOccAllocation(newOccAllocation)
+    setPerAllocation(newPerAllocation)
   }
 
   // 完成分配
@@ -171,6 +241,13 @@ const SkillAllocationComponent = ({
           >
             兴趣技能点 ({remainingPersonal >= 0 ? remainingPersonal : 0} 剩余)
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRandomAllocate}
+          >
+            🎲 随机分配
+          </Button>
         </div>
 
         {/* 技能列表 */}
@@ -188,7 +265,10 @@ const SkillAllocationComponent = ({
                     attributes,
                     allocation,
                   )
-                  const allocatedPoints = allocation[skill.id] || 0
+                  // 当前类型的分配点数
+                  const currentTypeAlloc = allocationType === 'occupation' ? occAllocation : perAllocation
+                  const allocatedPoints = currentTypeAlloc[skill.id] || 0
+                  const totalAllocated = allocation[skill.id] || 0
                   const maxValue = getSkillMaxValue(skill.id, profession)
                   const canIncrease =
                     canAllocateSkillPoints(skill.id) &&
@@ -258,6 +338,9 @@ const SkillAllocationComponent = ({
                           </div>
                           <span className={styles.pointsLabel}>
                             {allocatedPoints > 0 ? `+${allocatedPoints}` : '0'} 点
+                            {totalAllocated !== allocatedPoints && totalAllocated > 0 && (
+                              <span className={styles.totalPoints}>(共 +{totalAllocated})</span>
+                            )}
                           </span>
                         </div>
                       ) : (

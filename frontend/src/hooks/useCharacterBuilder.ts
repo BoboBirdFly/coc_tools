@@ -42,11 +42,14 @@ const makeInitialState = (): BuilderState => {
         ...saved,
       // 确保所有属性都有值（合并默认值）
         attributes: { ...DEFAULT_ATTRIBUTES, ...saved.attributes },
+      // 保留技能分配
+      skills: saved.skills || {},
       }
     : {
       name: UI_TEXT.defaultCharacterName,
       professionId: FULL_PROFESSIONS[0].id,
         attributes: { ...DEFAULT_ATTRIBUTES },
+      skills: {},
       }
   return {
     form,

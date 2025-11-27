@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import type { AttributeKey } from '@schema/character'
 import { ATTRIBUTE_NAMES, SECONDARY_NAMES } from '@data/i18n'
-import { Tooltip } from './ui'
+import { InfoPopup } from './ui'
 import styles from './AttributeTooltip.module.css'
 
 type AttributeTooltipProps = {
@@ -43,44 +44,40 @@ const getAffectedSecondaries = (attribute: AttributeKey): string[] => {
 
 /**
  * 属性说明浮层组件
- * 基于通用 Tooltip 组件实现
+ * 基于通用 InfoPopup 组件实现
  */
 const AttributeTooltip = ({ attribute }: AttributeTooltipProps) => {
+  const [showInfo, setShowInfo] = useState(false)
   const description = getAttributeDescription(attribute)
   const affectedSecondaries = getAffectedSecondaries(attribute)
 
   return (
-    <Tooltip
-      content={
-        <div className={styles.tooltipContent}>
-          <div className={styles.header}>
-            <strong>{ATTRIBUTE_NAMES[attribute]}</strong>
-          </div>
-          <div className={styles.content}>
-            <p className={styles.description}>{description}</p>
-            {affectedSecondaries.length > 0 && (
-              <div className={styles.affected}>
-                <span className={styles.affectedLabel}>影响的二级属性：</span>
-                <span className={styles.affectedList}>
-                  {affectedSecondaries.join('、')}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      }
-      position="bottom"
-      trigger="click"
-    >
+    <span className={styles.container}>
       <button
         type="button"
         className={styles.icon}
+        onClick={() => setShowInfo(!showInfo)}
         aria-label={`${ATTRIBUTE_NAMES[attribute]}说明`}
         title={`${ATTRIBUTE_NAMES[attribute]}说明`}
       >
         ?
       </button>
-    </Tooltip>
+      <InfoPopup
+        isOpen={showInfo}
+        onClose={() => setShowInfo(false)}
+        title={ATTRIBUTE_NAMES[attribute]}
+      >
+        <p className={styles.description}>{description}</p>
+        {affectedSecondaries.length > 0 && (
+          <div className={styles.affected}>
+            <span className={styles.affectedLabel}>影响的二级属性：</span>
+            <span className={styles.affectedList}>
+              {affectedSecondaries.join('、')}
+            </span>
+          </div>
+        )}
+      </InfoPopup>
+    </span>
   )
 }
 

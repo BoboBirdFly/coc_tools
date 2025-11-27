@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { AttributeMap } from '@schema/character'
+import type { AttributeMap, SkillAllocation } from '@schema/character'
 import CharacterSheetPage from '@pages/CharacterSheetPage'
 import CharacterCreation from '@features/character-creation/CharacterCreation'
 import SkillsReferencePage from '@pages/SkillsReferencePage'
@@ -11,13 +11,14 @@ type Page = 'sheet' | 'creation' | 'skills'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('sheet')
-  const { actions } = useCharacterBuilder()
+  const characterBuilder = useCharacterBuilder()
+  const { actions } = characterBuilder
 
   // 车卡完成，跳转到角色卡页面
   const handleCreationComplete = (
     attributes: AttributeMap,
     professionId: string,
-    skills?: Record<string, number>,
+    skills?: SkillAllocation,
   ) => {
     actions.updateForm({
       attributes,
@@ -73,7 +74,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        {currentPage === 'sheet' && <CharacterSheetPage />}
+        {currentPage === 'sheet' && <CharacterSheetPage characterBuilder={characterBuilder} />}
         {currentPage === 'creation' && (
           <CharacterCreation
             onComplete={handleCreationComplete}

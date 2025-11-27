@@ -7,6 +7,7 @@ export const SPECIAL_SKILLS = {
   DODGE: 'dodge', // 闪避：初始值 = DEX/2
   LANGUAGE_NATIVE: 'language-native', // 母语：初始值 = EDU
   CTHULHU_MYTHOS: 'cthulhu-mythos', // 克苏鲁神话：不能分配点数
+  CREDIT_RATING: 'credit-rating', // 信用评级：职业和兴趣技能点都可以加
 } as const
 
 // 技能最大值限制
@@ -148,22 +149,34 @@ export const calculateUsedSkillPoints = (
 
 /**
  * 获取可以分配职业技能点的技能列表
+ * 信用评级可以用职业技能点加
  */
 export const getOccupationSkillList = (profession?: Profession): SkillDefinition[] => {
   if (!profession) return []
-  return profession.signatureSkills
+  const skills = profession.signatureSkills
     .map((skillId) => getSkillById(skillId))
     .filter((skill): skill is SkillDefinition => Boolean(skill))
+
+  // 如果信用评级不在职业技能中，也添加进来
+  const creditRating = getSkillById(SPECIAL_SKILLS.CREDIT_RATING)
+  if (creditRating && !profession.signatureSkills.includes(SPECIAL_SKILLS.CREDIT_RATING)) {
+    skills.push(creditRating)
+  }
+
+  return skills
 }
 
 /**
  * 获取可以分配兴趣技能点的技能列表
+ * 信用评级可以用兴趣技能点加
  */
 export const getPersonalSkillList = (profession?: Profession): SkillDefinition[] => {
   const signatureSkillIds = new Set(profession?.signatureSkills ?? [])
   return SKILLS.filter(
     (skill) =>
-      !signatureSkillIds.has(skill.id) && canAllocateSkillPoints(skill.id),
+      // 非职业技能，或者是信用评级（信用评级两边都能加）
+      (!signatureSkillIds.has(skill.id) || skill.id === SPECIAL_SKILLS.CREDIT_RATING) &&
+      canAllocateSkillPoints(skill.id),
   )
 }
 

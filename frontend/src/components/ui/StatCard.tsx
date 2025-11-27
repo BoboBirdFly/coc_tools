@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import styles from './StatCard.module.css'
 
 type StatCardProps = HTMLAttributes<HTMLDivElement> & {
-  label: string
+  label: ReactNode
   value: ReactNode
   note?: string
   variant?: 'default' | 'highlight'

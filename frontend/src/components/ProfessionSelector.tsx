@@ -1,11 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import type { FullProfession } from '@data/professions-full'
+import { InfoPopup } from './ui'
 import styles from './ProfessionSelector.module.css'
 
 type ProfessionSelectorProps = {
   professions: FullProfession[]
   value: string // 当前选中的职业ID
   onChange: (professionId: string) => void
+  renderHelpButton?: (props: { onClick: () => void; showInfo: boolean }) => React.ReactNode
 }
 
 /**
@@ -13,10 +15,11 @@ type ProfessionSelectorProps = {
  * - 移动端优化：支持搜索、过滤
  * - 显示完整职业信息
  */
-const ProfessionSelector = ({ professions, value, onChange }: ProfessionSelectorProps) => {
+const ProfessionSelector = ({ professions, value, onChange, renderHelpButton }: ProfessionSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [eraFilter, setEraFilter] = useState<'all' | 'classic' | 'modern' | 'any'>('all')
+  const [showInfo, setShowInfo] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -89,6 +92,9 @@ const ProfessionSelector = ({ professions, value, onChange }: ProfessionSelector
 
   return (
     <div className={styles.container} ref={dropdownRef}>
+      {/* 如果提供了外部渲染帮助按钮的回调，则调用 */}
+      {renderHelpButton && selectedProfession && renderHelpButton({ onClick: () => setShowInfo(!showInfo), showInfo })}
+
       {/* 输入框触发器 */}
       <div
         className={styles.trigger}
@@ -188,9 +194,13 @@ const ProfessionSelector = ({ professions, value, onChange }: ProfessionSelector
         </div>
       )}
 
-      {/* 职业信息卡片（选择后显示） */}
-      {selectedProfession && !isOpen && (
-        <div className={styles.infoCard}>
+      {/* 职业详情弹窗 */}
+      {selectedProfession && (
+        <InfoPopup
+          isOpen={showInfo}
+          onClose={() => setShowInfo(false)}
+          title={selectedProfession.name}
+        >
           <p className={styles.description}>{selectedProfession.description}</p>
           <div className={styles.meta}>
             <span className={styles.metaItem}>
@@ -202,7 +212,7 @@ const ProfessionSelector = ({ professions, value, onChange }: ProfessionSelector
               </span>
             )}
           </div>
-        </div>
+        </InfoPopup>
       )}
     </div>
   )

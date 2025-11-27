@@ -166,6 +166,12 @@
   text-align: right;
 }
 
+.totalPoints {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin-left: 0.25rem;
+}
+
 .skillNote {
   padding: 0.5rem;
   background: var(--color-bg-secondary);
@@ -284,6 +290,12 @@
     min-width: 2.5rem;
     text-align: right;
     font-size: 0.85rem;
+  }
+
+  .totalPoints {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-left: 0.25rem;
   }
 
   .actions {
