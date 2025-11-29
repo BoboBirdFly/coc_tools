@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AttributeMap, AttributeKey } from '@schema/character'
+import type { AttributeMap, AttributeKey, LarryCreationTempData } from '@schema/character'
 import { ATTRIBUTE_NAMES } from '@data/i18n'
 import { ATTRIBUTE_RULES, STORAGE_KEYS } from '@data/constants'
 import { roll3d6x5, roll2d6Plus6x5 } from '@utils/dice'
@@ -16,6 +16,15 @@ type FateCreationProps = {
   initialAttributes?: AttributeMap // 初始属性（用于恢复已保存的数据）
 }
 
+// 检查是否是有效的属性数据
+const isValidAttributes = (attrs: AttributeMap | undefined): boolean => {
+  return !!(
+    attrs &&
+    Object.keys(attrs).length > 0 &&
+    Object.values(attrs).every((val) => typeof val === 'number' && val > 0)
+  )
+}
+
 // Larry版属性分组配置
 const LARRY_GROUP1_ATTRIBUTES: AttributeKey[] = ['str', 'dex', 'app', 'pow', 'con']
 const LARRY_GROUP2_ATTRIBUTES: AttributeKey[] = ['siz', 'int', 'edu']
@@ -30,7 +39,10 @@ const MAX_LUCK_VALUE = 90
  */
 const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationProps) => {
   const [mode, setMode] = useState<CreationMode>('default')
-  const [attributes, setAttributes] = useState<AttributeMap | null>(initialAttributes || null)
+  // 只有在 initialAttributes 有效时才使用，否则为 null
+  const [attributes, setAttributes] = useState<AttributeMap | null>(
+    isValidAttributes(initialAttributes) ? initialAttributes! : null
+  )
   const [luck, setLuck] = useState<number | null>(null) // 幸运值
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -50,40 +62,7 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
     return clampValue(luck, MIN_ATTRIBUTE_VALUE, MAX_LUCK_VALUE)
   }
 
-  // 生成所有属性（默认随机模式）
-  const generateAttributes = () => {
-    setIsGenerating(true)
-    
-    // 模拟骰子动画延迟
-    setTimeout(() => {
-      const newAttributes: AttributeMap = {
-        str: roll3d6x5(MIN_ATTRIBUTE_VALUE),
-        con: roll3d6x5(MIN_ATTRIBUTE_VALUE),
-        dex: roll3d6x5(MIN_ATTRIBUTE_VALUE),
-        app: roll3d6x5(MIN_ATTRIBUTE_VALUE),
-        pow: roll3d6x5(MIN_ATTRIBUTE_VALUE),
-        siz: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
-        int: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
-        edu: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
-      }
-      
-      // 确保属性值在有效范围内
-      Object.keys(newAttributes).forEach((key) => {
-        const attrKey = key as keyof AttributeMap
-        newAttributes[attrKey] = clampValue(
-          newAttributes[attrKey],
-          ATTRIBUTE_RULES.min,
-          ATTRIBUTE_RULES.max,
-        )
-      })
-
-      setAttributes(newAttributes)
-      setLuck(generateLuck())
-      setIsGenerating(false)
-    }, 300)
-  }
-
-  // 生成一组属性值
+  // 生成一组属性值（通用函数）
   const generateAttributeGroup = (
     count: number,
     rollFn: () => number,
@@ -96,33 +75,88 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
     return values.sort((a, b) => b - a) // 降序排列
   }
 
-  // 生成larry版属性池
-  const generateLarryAttributes = () => {
+  // 生成默认模式的完整属性
+  const generateDefaultAttributes = (): AttributeMap => {
+    const newAttributes: AttributeMap = {
+      str: roll3d6x5(MIN_ATTRIBUTE_VALUE),
+      con: roll3d6x5(MIN_ATTRIBUTE_VALUE),
+      dex: roll3d6x5(MIN_ATTRIBUTE_VALUE),
+      app: roll3d6x5(MIN_ATTRIBUTE_VALUE),
+      pow: roll3d6x5(MIN_ATTRIBUTE_VALUE),
+      siz: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
+      int: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
+      edu: roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
+    }
+
+    // 确保属性值在有效范围内
+    Object.keys(newAttributes).forEach((key) => {
+      const attrKey = key as keyof AttributeMap
+      newAttributes[attrKey] = clampValue(
+        newAttributes[attrKey],
+        ATTRIBUTE_RULES.min,
+        ATTRIBUTE_RULES.max,
+      )
+    })
+
+    return newAttributes
+  }
+
+  // 生成Larry版属性池
+  const generateLarryAttributePools = () => {
+    const group1 = generateAttributeGroup(
+      LARRY_GROUP1_COUNT,
+      () => roll3d6x5(MIN_ATTRIBUTE_VALUE),
+    )
+
+    const group2 = generateAttributeGroup(
+      LARRY_GROUP2_COUNT,
+      () => roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
+    )
+
+    return { group1, group2 }
+  }
+
+  // 通用的属性生成执行函数（处理延迟和状态管理）
+  const executeAttributeGeneration = (
+    generator: () => void,
+    onComplete?: () => void,
+  ) => {
     setIsGenerating(true)
 
     setTimeout(() => {
-      // 生成第一组属性值（3d6×5）
-      const group1 = generateAttributeGroup(
-        LARRY_GROUP1_COUNT,
-        () => roll3d6x5(MIN_ATTRIBUTE_VALUE),
-      )
-
-      // 生成第二组属性值（(2d6+6)×5）
-      const group2 = generateAttributeGroup(
-        LARRY_GROUP2_COUNT,
-        () => roll2d6Plus6x5(MIN_ATTRIBUTE_VALUE),
-      )
-
-      setLarryGroup1(group1)
-      setLarryGroup2(group2)
-      setLarryAllocations({})
+      generator()
       setLuck(generateLuck())
-      // 保存状态
-      setTimeout(() => {
-        saveLarryState()
-      }, 0)
+      if (onComplete) {
+        onComplete()
+      }
       setIsGenerating(false)
     }, 300)
+  }
+
+  // 生成所有属性（默认随机模式）
+  const generateAttributes = () => {
+    executeAttributeGeneration(() => {
+      const newAttributes = generateDefaultAttributes()
+      setAttributes(newAttributes)
+    })
+  }
+
+  // 生成larry版属性池
+  const generateLarryAttributes = () => {
+    executeAttributeGeneration(
+      () => {
+        const { group1, group2 } = generateLarryAttributePools()
+        setLarryGroup1(group1)
+        setLarryGroup2(group2)
+        setLarryAllocations({})
+      },
+      () => {
+        // 保存状态
+        setTimeout(() => {
+          saveLarryState()
+        }, 0)
+      },
+    )
   }
 
   // larry版：分配属性值
@@ -135,13 +169,14 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
       // 实时保存状态
       setTimeout(() => {
         if (mode === 'larry' && larryGroup1.length > 0 && larryGroup2.length > 0) {
-          setLocalStorageItem(STORAGE_KEYS.creationTempData, {
+          const tempData: LarryCreationTempData = {
             mode: 'larry',
             larryGroup1,
             larryGroup2,
             larryAllocations: newAllocations,
             luck,
-          })
+          }
+          setLocalStorageItem(STORAGE_KEYS.creationTempData, tempData)
         }
       }, 0)
       return newAllocations
@@ -191,13 +226,14 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
     // 保存状态
     setTimeout(() => {
       if (mode === 'larry' && larryGroup1.length > 0 && larryGroup2.length > 0) {
-        setLocalStorageItem(STORAGE_KEYS.creationTempData, {
+        const tempData: LarryCreationTempData = {
           mode: 'larry',
           larryGroup1,
           larryGroup2,
           larryAllocations: newAllocations,
           luck,
-        })
+        }
+        setLocalStorageItem(STORAGE_KEYS.creationTempData, tempData)
       }
     }, 0)
   }
@@ -256,16 +292,16 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
   // 保存larry版状态到临时存储
   const saveLarryState = () => {
     if (mode === 'larry' && larryGroup1.length > 0 && larryGroup2.length > 0) {
-      setLocalStorageItem(STORAGE_KEYS.creationTempData, {
+      const tempData: LarryCreationTempData = {
         mode: 'larry',
         larryGroup1,
         larryGroup2,
         larryAllocations,
         luck,
-      })
+      }
+      setLocalStorageItem(STORAGE_KEYS.creationTempData, tempData)
     }
   }
-
 
   const handleConfirm = () => {
     if (mode === 'default' && attributes) {
@@ -274,14 +310,14 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
       onComplete(attributes)
     } else if (mode === 'larry' && isLarryComplete()) {
       const finalAttributes: AttributeMap = {
-        str: larryAllocations.str || ATTRIBUTE_RULES.min,
-        dex: larryAllocations.dex || ATTRIBUTE_RULES.min,
-        app: larryAllocations.app || ATTRIBUTE_RULES.min,
-        pow: larryAllocations.pow || ATTRIBUTE_RULES.min,
-        con: larryAllocations.con || ATTRIBUTE_RULES.min,
-        siz: larryAllocations.siz || ATTRIBUTE_RULES.min,
-        int: larryAllocations.int || ATTRIBUTE_RULES.min,
-        edu: larryAllocations.edu || ATTRIBUTE_RULES.min,
+        str: larryAllocations.str ?? ATTRIBUTE_RULES.min,
+        dex: larryAllocations.dex ?? ATTRIBUTE_RULES.min,
+        app: larryAllocations.app ?? ATTRIBUTE_RULES.min,
+        pow: larryAllocations.pow ?? ATTRIBUTE_RULES.min,
+        con: larryAllocations.con ?? ATTRIBUTE_RULES.min,
+        siz: larryAllocations.siz ?? ATTRIBUTE_RULES.min,
+        int: larryAllocations.int ?? ATTRIBUTE_RULES.min,
+        edu: larryAllocations.edu ?? ATTRIBUTE_RULES.min,
       }
       // 保存larry版状态
       saveLarryState()
@@ -289,11 +325,22 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
     }
   }
 
+  // 重置所有状态到初始值
+  const resetAllState = () => {
+    setAttributes(null)
+    setMode('default')
+    setLarryGroup1([])
+    setLarryGroup2([])
+    setLarryAllocations({})
+    setLuck(null)
+    setIsGenerating(false)
+  }
+
   // 切换模式时重置状态
   const handleModeChange = (newMode: CreationMode) => {
     setMode(newMode)
-    // 切换模式时，如果有初始属性则保留，否则清空
-    if (!initialAttributes) {
+    // 切换模式时，如果有有效的初始属性则保留，否则清空
+    if (!isValidAttributes(initialAttributes)) {
       setAttributes(null)
     }
     setLuck(null)
@@ -310,16 +357,16 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
 
   // 组件挂载时和initialAttributes变化时，恢复larry版状态
   useEffect(() => {
-    const tempData = getLocalStorageItem<{
-      mode: CreationMode
-      larryGroup1: number[]
-      larryGroup2: number[]
-      larryAllocations: Partial<AttributeMap>
-      luck: number | null
-    }>(STORAGE_KEYS.creationTempData)
+    const tempData = getLocalStorageItem<LarryCreationTempData>(STORAGE_KEYS.creationTempData)
+
+    // 如果临时数据被清除且没有有效的初始属性（新开始），重置所有状态
+    if (!tempData && !isValidAttributes(initialAttributes)) {
+      resetAllState()
+      return
+    }
 
     if (tempData && tempData.mode === 'larry') {
-      // 恢复larry版状态
+      // 恢复larry版状态（回退回来的情况）
       setMode('larry')
       setLarryGroup1(tempData.larryGroup1 || [])
       setLarryGroup2(tempData.larryGroup2 || [])
@@ -329,20 +376,20 @@ const FateCreation = ({ onComplete, onBack, initialAttributes }: FateCreationPro
       // 如果有分配，设置attributes为分配后的结果
       if (Object.keys(tempData.larryAllocations || {}).length > 0) {
         const restoredAttributes: AttributeMap = {
-          str: tempData.larryAllocations.str || ATTRIBUTE_RULES.min,
-          dex: tempData.larryAllocations.dex || ATTRIBUTE_RULES.min,
-          app: tempData.larryAllocations.app || ATTRIBUTE_RULES.min,
-          pow: tempData.larryAllocations.pow || ATTRIBUTE_RULES.min,
-          con: tempData.larryAllocations.con || ATTRIBUTE_RULES.min,
-          siz: tempData.larryAllocations.siz || ATTRIBUTE_RULES.min,
-          int: tempData.larryAllocations.int || ATTRIBUTE_RULES.min,
-          edu: tempData.larryAllocations.edu || ATTRIBUTE_RULES.min,
+          str: tempData.larryAllocations.str ?? ATTRIBUTE_RULES.min,
+          dex: tempData.larryAllocations.dex ?? ATTRIBUTE_RULES.min,
+          app: tempData.larryAllocations.app ?? ATTRIBUTE_RULES.min,
+          pow: tempData.larryAllocations.pow ?? ATTRIBUTE_RULES.min,
+          con: tempData.larryAllocations.con ?? ATTRIBUTE_RULES.min,
+          siz: tempData.larryAllocations.siz ?? ATTRIBUTE_RULES.min,
+          int: tempData.larryAllocations.int ?? ATTRIBUTE_RULES.min,
+          edu: tempData.larryAllocations.edu ?? ATTRIBUTE_RULES.min,
         }
         setAttributes(restoredAttributes)
       }
-    } else if (initialAttributes && !tempData) {
-      // 如果没有larry版状态，但有初始属性，则使用初始属性（默认模式）
-      setAttributes(initialAttributes)
+    } else if (isValidAttributes(initialAttributes) && !tempData) {
+      // 如果没有larry版状态，但有有效的初始属性，则使用初始属性（默认模式，回退回来的情况）
+      setAttributes(initialAttributes!)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAttributes]) // 当initialAttributes变化时也执行

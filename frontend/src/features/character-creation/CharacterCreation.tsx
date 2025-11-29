@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import type { AttributeMap, SkillAllocation } from '@schema/character'
 import CreationMethodSelector from './CreationMethodSelector'
 import FateCreation from './FateCreation'
@@ -10,6 +10,8 @@ import ProfessionRecommendations from '@components/ProfessionRecommendations'
 import { FULL_PROFESSIONS } from '@data/professions-full'
 import { calculateSkillBudgets } from '@services/calculator'
 import { useCharacterBuilder } from '@hooks/useCharacterBuilder'
+import { STORAGE_KEYS } from '@data/constants'
+import { setLocalStorageItem } from '@utils/storage'
 import { Button, PageHeader, Card } from '@components/ui'
 import styles from './CharacterCreation.module.css'
 
@@ -19,6 +21,17 @@ type CreationStep = 'method' | 'attributes' | 'profession' | 'skills'
 type CharacterCreationProps = {
   onComplete: (attributes: AttributeMap, professionId: string, skills?: SkillAllocation) => void
   onCancel: () => void
+}
+
+/**
+ * 检查是否是有效的属性数据
+ */
+const isValidAttributes = (attrs: AttributeMap | undefined): boolean => {
+  return !!(
+    attrs &&
+    Object.keys(attrs).length > 0 &&
+    Object.values(attrs).every((val) => typeof val === 'number' && val > 0)
+  )
 }
 
 /**
@@ -34,10 +47,14 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
   const characterBuilder = useCharacterBuilder()
   const { actions, form } = characterBuilder
 
+  // 跟踪上一个步骤，用于判断来源
+  const previousStepRef = useRef<CreationStep>('method')
+
   // 从 characterBuilder 恢复已保存的数据（组件首次加载时）
+  // 注意：只有在 form 中有有效数据时才恢复，如果 form 被重置为空（新创建），则不恢复
   useEffect(() => {
-    // 只在本地状态为空时恢复，避免覆盖用户输入
-    if (form.attributes && Object.keys(form.attributes).length > 0 && !attributes) {
+    // 只在本地状态为空且 form 中有有效数据时恢复，避免覆盖用户输入或新创建的情况
+    if (isValidAttributes(form.attributes) && !attributes) {
       setAttributes(form.attributes)
     }
     if (form.professionId && !selectedProfessionId) {
@@ -52,8 +69,17 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
   // 当步骤变化时，从 characterBuilder 恢复对应步骤的数据
   useEffect(() => {
     if (step === 'attributes') {
-      // 返回到属性步骤时，恢复已保存的属性
-      if (form.attributes && Object.keys(form.attributes).length > 0) {
+      const isFromMethod = previousStepRef.current === 'method'
+
+      // 如果是从 method 步骤来的（新开始），不恢复任何属性
+      if (isFromMethod) {
+        // 确保 attributes 为空
+        setAttributes(null)
+        return
+      }
+
+      // 返回到属性步骤时，恢复已保存的属性（仅当属性有效时）
+      if (isValidAttributes(form.attributes)) {
         setAttributes(form.attributes)
       }
     }
@@ -63,7 +89,7 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
         setSelectedProfessionId(form.professionId)
       }
       // 确保属性已恢复（因为职业步骤需要属性）
-      if (form.attributes && Object.keys(form.attributes).length > 0 && !attributes) {
+      if (isValidAttributes(form.attributes) && !attributes) {
         setAttributes(form.attributes)
       }
     }
@@ -73,7 +99,7 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
         setSkills(form.skills)
       }
       // 确保属性和职业已恢复
-      if (form.attributes && Object.keys(form.attributes).length > 0 && !attributes) {
+      if (isValidAttributes(form.attributes) && !attributes) {
         setAttributes(form.attributes)
       }
       if (form.professionId && !selectedProfessionId) {
@@ -96,13 +122,15 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
   // 选择车卡方式
   const handleMethodSelect = (selectedMethod: CreationMethod) => {
     setMethod(selectedMethod)
+    previousStepRef.current = step
     setStep('attributes')
   }
 
   // 属性生成完成
-  const handleAttributesComplete = (generatedAttributes: AttributeMap) => {
+  const handleAttributesComplete = (generatedAttributes: AttributeMap, _luck?: number) => {
     setAttributes(generatedAttributes)
     // 保存属性到 characterBuilder
+    // 注意：幸运值作为二级属性，会在计算时自动生成，这里暂时不处理
     actions.updateForm({ attributes: generatedAttributes })
     setStep('profession')
   }
@@ -163,10 +191,13 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
     saveCurrentStepData()
 
     if (step === 'skills') {
+      previousStepRef.current = step
       setStep('profession')
     } else if (step === 'profession') {
+      previousStepRef.current = step
       setStep('attributes')
     } else if (step === 'attributes') {
+      previousStepRef.current = step
       setStep('method')
       setMethod(null)
       setAttributes(null)
@@ -174,6 +205,26 @@ const CharacterCreation = ({ onComplete, onCancel }: CharacterCreationProps) => 
       setSkills({})
     }
   }
+
+  // 当进入属性步骤时，根据来源决定是否清除缓存
+  useEffect(() => {
+    if (step === 'attributes') {
+      const isFromMethod = previousStepRef.current === 'method'
+
+      if (isFromMethod) {
+        // 从选择车卡方式过来的，清除车卡缓存和本地状态
+        setLocalStorageItem(STORAGE_KEYS.creationTempData, null)
+        // 清空本地属性状态，确保从空白开始
+        setAttributes(null)
+      } else {
+        // 从其他步骤回退过来的，保存当前记录（已在 handleBack 中保存）
+        // 这里不需要额外操作
+      }
+
+      // 更新 previousStepRef 为当前步骤
+      previousStepRef.current = step
+    }
+  }, [step])
 
   // 步骤配置
   const stepConfig = {

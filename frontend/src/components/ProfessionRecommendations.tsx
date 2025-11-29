@@ -7,32 +7,115 @@ import styles from './ProfessionRecommendations.module.css'
 
 /**
  * 计算职业的技能点数
+ * 支持"或"的情况：取较大值
  */
 const calculateProfessionSkillPoints = (
   attributes: AttributeMap,
   profession: FullProfession,
 ): number => {
   return profession.skillFormulas.reduce((sum, part) => {
+    // 如果有可选属性，取所有属性（包括主属性和可选属性）中的最大值
+    if (part.alternativeAttributes && part.alternativeAttributes.length > 0) {
+      const allAttributes = [part.attribute, ...part.alternativeAttributes]
+      const maxValue = Math.max(...allAttributes.map(attr => attributes[attr]))
+      return sum + maxValue * part.multiplier
+    }
+    // 没有可选属性，直接使用主属性
     const attributeValue = attributes[part.attribute]
     return sum + attributeValue * part.multiplier
   }, 0)
 }
 
 /**
+ * 生成所有可能的公式组合（用于"或"的情况）
+ */
+const generateFormulaVariants = (
+  attributes: AttributeMap,
+  profession: FullProfession,
+): Array<{ formula: string; total: number }> => {
+  const variants: Array<{ formula: string; total: number }> = []
+
+  // 检查是否有"或"的情况
+  const hasAlternatives = profession.skillFormulas.some(
+    part => part.alternativeAttributes && part.alternativeAttributes.length > 0
+  )
+
+  if (!hasAlternatives) {
+    // 没有"或"，直接生成一个公式
+    const parts = profession.skillFormulas.map((part) => {
+      const value = attributes[part.attribute]
+      return `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`
+    })
+    const total = calculateProfessionSkillPoints(attributes, profession)
+    return [{ formula: parts.join(' + '), total }]
+  }
+
+  // 有"或"的情况，生成所有可能的组合
+  const generateCombinations = (
+    parts: typeof profession.skillFormulas,
+    index: number,
+    currentParts: string[],
+    currentTotal: number,
+  ): void => {
+    if (index >= parts.length) {
+      variants.push({ formula: currentParts.join(' + '), total: currentTotal })
+      return
+    }
+
+    const part = parts[index]
+    if (part.alternativeAttributes && part.alternativeAttributes.length > 0) {
+      // 有可选属性，为每个选项生成一个分支
+      const allAttributes = [part.attribute, ...part.alternativeAttributes]
+      for (const attr of allAttributes) {
+        const value = attributes[attr]
+        const contribution = value * part.multiplier
+        generateCombinations(
+          parts,
+          index + 1,
+          [...currentParts, `${ATTRIBUTE_NAMES[attr]}(${value}) × ${part.multiplier}`],
+          currentTotal + contribution,
+        )
+      }
+    } else {
+      // 没有可选属性，直接添加
+      const value = attributes[part.attribute]
+      const contribution = value * part.multiplier
+      generateCombinations(
+        parts,
+        index + 1,
+        [...currentParts, `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`],
+        currentTotal + contribution,
+      )
+    }
+  }
+
+  generateCombinations(profession.skillFormulas, 0, [], 0)
+
+  // 去重（相同的公式和总值）
+  const uniqueVariants = variants.filter(
+    (v, i, self) => i === self.findIndex(t => t.formula === v.formula && t.total === v.total)
+  )
+
+  return uniqueVariants
+}
+
+/**
  * 格式化技能公式为可读字符串，包含属性值
  * 格式：教育(60) × 2 + 力量(80) × 2 = 280
+ * 如果有"或"的情况，返回所有可能的组合
  */
 const formatSkillFormulaWithValues = (
   attributes: AttributeMap,
   profession: FullProfession,
-): string => {
-  const parts = profession.skillFormulas.map((part) => {
-    const value = attributes[part.attribute]
-    return `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`
-  })
+): string | string[] => {
+  const variants = generateFormulaVariants(attributes, profession)
 
-  const total = calculateProfessionSkillPoints(attributes, profession)
-  return `${parts.join(' + ')} = ${total}`
+  if (variants.length === 1) {
+    return `${variants[0].formula} = ${variants[0].total}`
+  }
+
+  // 多个组合，返回所有可能的公式
+  return variants.map(v => `${v.formula} = ${v.total}`)
 }
 
 type ProfessionRecommendationsProps = {
@@ -162,7 +245,24 @@ const ProfessionRecommendations = ({
                 <div className={styles.formulaSection}>
                   <div className={styles.formulaLabel}>计算公式：</div>
                   <div className={styles.formulaValue}>
-                    {formatSkillFormulaWithValues(attributes, item.profession)}
+                    {(() => {
+                      const formula = formatSkillFormulaWithValues(attributes, item.profession)
+                      if (Array.isArray(formula)) {
+                        return (
+                          <div className={styles.formulaVariants}>
+                            {formula.map((f, idx) => (
+                              <div key={idx} className={styles.formulaVariant}>
+                                {f}
+                                {idx === 0 && (
+                                  <span className={styles.formulaNote}>（取较大值）</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                      return formula
+                    })()}
                   </div>
                 </div>
                 <div className={styles.skillPointsSection}>

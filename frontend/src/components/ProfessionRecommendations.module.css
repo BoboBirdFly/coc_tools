@@ -144,6 +144,30 @@
   word-break: break-word;
 }
 
+.formulaVariants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formulaVariant {
+  font-size: 0.875rem;
+  color: var(--color-text, #333);
+  font-family: monospace;
+  padding: 0.5rem;
+  background: var(--color-panel, #fff);
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.formulaNote {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #666);
+  font-style: italic;
+  font-family: sans-serif;
+}
+
 .skillPointsSection {
   margin-top: 0.25rem;
 }

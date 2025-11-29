@@ -72,9 +72,17 @@ const deriveSecondaryStats = (attributes: AttributeMap, profession?: Profession)
 
 /**
  * 评估职业技能公式（如 EDU×2 + APP×2）
+ * 支持"或"的情况：取较大值
  */
 export const evaluateSkillFormulas = (attributes: AttributeMap, profession: Profession) => {
   return profession.skillFormulas.reduce((sum, part) => {
+    // 如果有可选属性，取所有属性（包括主属性和可选属性）中的最大值
+    if (part.alternativeAttributes && part.alternativeAttributes.length > 0) {
+      const allAttributes = [part.attribute, ...part.alternativeAttributes]
+      const maxValue = Math.max(...allAttributes.map(attr => attributes[attr]))
+      return sum + maxValue * part.multiplier
+    }
+    // 没有可选属性，直接使用主属性
     const attributeValue = attributes[part.attribute]
     return sum + attributeValue * part.multiplier
   }, 0)

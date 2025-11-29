@@ -5,13 +5,13 @@ import CharacterListPage from '@pages/CharacterListPage'
 import CharacterCreation from '@features/character-creation/CharacterCreation'
 import SkillsReferencePage from '@pages/SkillsReferencePage'
 import { useCharacterBuilder } from '@hooks/useCharacterBuilder'
-import { DEFAULT_ATTRIBUTES } from '@data/constants'
-import { FULL_PROFESSIONS } from '@data/professions-full'
+import { STORAGE_KEYS } from '@data/constants'
 import {
   saveCharacter,
   updateCharacter,
   hasCharacterList,
 } from '@services/characterList'
+import { setLocalStorageItem } from '@utils/storage'
 import { Button } from '@components/ui'
 import './App.css'
 
@@ -26,13 +26,9 @@ function App() {
 
   // 初始化：检查是否有角色列表
   useEffect(() => {
-    if (hasCharacterList()) {
-      // 有角色列表，显示列表页面
-      setCurrentPage('list')
-    } else {
-      // 没有角色列表，直接进入创建流程
-      setCurrentPage('creation')
-    }
+    // 无论是否有角色列表，都显示列表页面
+    // 如果列表为空，用户可以在列表页面点击"创建角色"按钮
+    setCurrentPage('list')
     setIsInitialized(true)
   }, [])
 
@@ -49,11 +45,13 @@ function App() {
   const handleCreateNew = () => {
     // 重置当前角色ID
     setCurrentCharacterId(null)
-    // 重置表单为默认值
+    // 清除Larry版临时数据
+    setLocalStorageItem(STORAGE_KEYS.creationTempData, null)
+    // 重置表单为空值，不设置默认值，让组件从空白状态开始
     actions.updateForm({
       name: '',
-      professionId: FULL_PROFESSIONS[0]?.id || '',
-      attributes: { ...DEFAULT_ATTRIBUTES },
+      professionId: '',
+      attributes: {} as AttributeMap,
       skills: {},
     })
     setCurrentPage('creation')

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import type { AttributeMap, SkillAllocation, SkillBudget, Profession } from '@schema/character'
-import { SKILL_CATEGORY_NAMES } from '@data/i18n'
+import { SKILL_CATEGORY_NAMES, ATTRIBUTE_NAMES } from '@data/i18n'
+import { evaluateSkillFormulas } from '@services/calculator'
 import {
   calculateSkillInitialValue,
   calculateSkillCurrentValue,
@@ -9,7 +10,9 @@ import {
   getPersonalSkillList,
   canAllocateSkillPoints,
   getSkillMaxValue,
+  calculateUsedSkillPoints,
 } from '@services/skillAllocation'
+import { getSkillById, getChildSkills } from '@data/skills'
 import { Card, PageHeader, Button, StatCard, NumberInput } from '@components/ui'
 import styles from './SkillAllocation.module.css'
 
@@ -24,6 +27,7 @@ type SkillAllocationProps = {
 }
 
 type AllocationType = 'occupation' | 'personal'
+type SkillSelectionStep = 'select-optional' | 'allocate-points' // 新增：选择可选技能步骤
 
 /**
  * 技能点分配组件
@@ -38,6 +42,29 @@ const SkillAllocationComponent = ({
   onChange,
   initialAllocation = {},
 }: SkillAllocationProps) => {
+  // 步骤：先选择可选技能，再分配点数
+  const [step, setStep] = useState<SkillSelectionStep>(
+    profession.optionalSkillGroups && profession.optionalSkillGroups.length > 0 ? 'select-optional' : 'allocate-points'
+  )
+
+  // 用户选择的可选技能（每个可选技能组选择的技能ID列表）
+  const [selectedOptionalSkills, setSelectedOptionalSkills] = useState<Record<number, string[]>>(() => {
+    // 从初始分配中恢复已选择的可选技能
+    const selected: Record<number, string[]> = {}
+    if (profession.optionalSkillGroups) {
+      profession.optionalSkillGroups.forEach((group, index) => {
+        if (group.type === 'specific' && group.skillIds) {
+          // 检查哪些可选技能在初始分配中有点数
+          const selectedInGroup = group.skillIds.filter(skillId => initialAllocation[skillId] !== undefined)
+          if (selectedInGroup.length > 0) {
+            selected[index] = selectedInGroup
+          }
+        }
+      })
+    }
+    return selected
+  })
+
   const [allocationType, setAllocationType] = useState<AllocationType>('occupation')
   // 分开跟踪职业点和兴趣点的分配（用于信用评级等两边都能加的技能）
   // 从初始分配中恢复（简化处理：将初始分配全部作为职业分配）
@@ -46,6 +73,60 @@ const SkillAllocationComponent = ({
     return { ...initialAllocation }
   })
   const [perAllocation, setPerAllocation] = useState<SkillAllocation>({})
+
+  // 计算最终的职业技能列表（包含必需技能和用户选择的可选技能）
+  // 如果职业技能包含父技能（如"射击"），则自动包含所有子技能（如"射击（手枪）"、"射击（步枪/散弹枪）"）
+  const finalSignatureSkills = useMemo(() => {
+    const skillSet = new Set<string>()
+    const skills: string[] = []
+
+    // 添加职业技能
+    for (const skillId of profession.signatureSkills) {
+      if (!skillSet.has(skillId)) {
+        skills.push(skillId)
+        skillSet.add(skillId)
+
+        // 如果这个技能有子技能，也添加所有子技能
+        const childSkills = getChildSkills(skillId)
+        for (const childSkill of childSkills) {
+          if (!skillSet.has(childSkill.id)) {
+            skills.push(childSkill.id)
+            skillSet.add(childSkill.id)
+          }
+        }
+      }
+    }
+
+    // 添加用户选择的可选技能
+    if (profession.optionalSkillGroups) {
+      profession.optionalSkillGroups.forEach((_group, index) => {
+        const selected = selectedOptionalSkills[index] || []
+        for (const skillId of selected) {
+          if (!skillSet.has(skillId)) {
+            skills.push(skillId)
+            skillSet.add(skillId)
+
+            // 如果这个技能有子技能，也添加所有子技能
+            const childSkills = getChildSkills(skillId)
+            for (const childSkill of childSkills) {
+              if (!skillSet.has(childSkill.id)) {
+                skills.push(childSkill.id)
+                skillSet.add(childSkill.id)
+              }
+            }
+          }
+        }
+      })
+    }
+
+    return skills
+  }, [profession.signatureSkills, profession.optionalSkillGroups, selectedOptionalSkills])
+
+  // 创建一个临时的 profession 对象，包含最终确定的职业技能
+  const finalProfession = useMemo(() => ({
+    ...profession,
+    signatureSkills: finalSignatureSkills,
+  }), [profession, finalSignatureSkills])
 
   // 合并后的分配（用于显示和最终提交）
   const allocation: SkillAllocation = useMemo(() => {
@@ -63,34 +144,95 @@ const SkillAllocationComponent = ({
     }
   }, [allocation, onChange])
 
-  // 获取技能列表
+  // 获取技能列表（使用最终确定的职业技能）
   const occupationSkills = useMemo(() => {
-    const skills = getOccupationSkillList(profession)
-    // 调试：检查技能列表
-    if (skills.length === 0 && profession.signatureSkills.length > 0) {
-      console.warn('职业技能列表为空，但职业有职业技能:', {
-        profession: profession.name,
-        signatureSkills: profession.signatureSkills,
-        mappedSkills: skills,
-      })
-    }
-    return skills
-  }, [profession])
-  const personalSkills = useMemo(() => getPersonalSkillList(profession), [profession])
+    return getOccupationSkillList(finalProfession)
+  }, [finalProfession])
+  const personalSkills = useMemo(() => getPersonalSkillList(finalProfession), [finalProfession])
 
-  // 计算已使用的点数（直接从各自的分配中累加）
+  // 计算已使用的点数（使用 calculateUsedSkillPoints 确保只计算分配的点数，不包含基础值）
+  // 注意：应该分别使用 occAllocation 和 perAllocation，而不是合并后的 allocation
+  // 因为一个技能可能同时有职业技能点和兴趣技能点（如信用评级）
   const usedOccupation = useMemo(
-    () => Object.values(occAllocation).reduce((sum, v) => sum + v, 0),
-    [occAllocation],
+    () => calculateUsedSkillPoints(occAllocation, 'occupation', finalProfession),
+    [occAllocation, finalProfession],
   )
   const usedPersonal = useMemo(
-    () => Object.values(perAllocation).reduce((sum, v) => sum + v, 0),
-    [perAllocation],
+    () => calculateUsedSkillPoints(perAllocation, 'personal', finalProfession),
+    [perAllocation, finalProfession],
   )
 
   // 剩余点数
   const remainingOccupation = skillBudgets.occupation - usedOccupation
   const remainingPersonal = skillBudgets.personal - usedPersonal
+
+  // 生成职业点数计算公式的所有可能组合
+  const formulaVariants = useMemo(() => {
+    const variants: Array<{ formula: string; total: number }> = []
+
+    // 检查是否有"或"的情况
+    const hasAlternatives = profession.skillFormulas.some(
+      part => part.alternativeAttributes && part.alternativeAttributes.length > 0
+    )
+
+    if (!hasAlternatives) {
+      // 没有"或"，直接生成一个公式
+      const parts = profession.skillFormulas.map((part) => {
+        const value = attributes[part.attribute]
+        return `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`
+      })
+      const total = evaluateSkillFormulas(attributes, profession)
+      return [{ formula: parts.join(' + '), total }]
+    }
+
+    // 有"或"的情况，生成所有可能的组合
+    const generateCombinations = (
+      parts: typeof profession.skillFormulas,
+      index: number,
+      currentParts: string[],
+      currentTotal: number,
+    ): void => {
+      if (index >= parts.length) {
+        variants.push({ formula: currentParts.join(' + '), total: currentTotal })
+        return
+      }
+
+      const part = parts[index]
+      if (part.alternativeAttributes && part.alternativeAttributes.length > 0) {
+        // 有可选属性，为每个选项生成一个分支
+        const allAttributes = [part.attribute, ...part.alternativeAttributes]
+        for (const attr of allAttributes) {
+          const value = attributes[attr]
+          const contribution = value * part.multiplier
+          generateCombinations(
+            parts,
+            index + 1,
+            [...currentParts, `${ATTRIBUTE_NAMES[attr]}(${value}) × ${part.multiplier}`],
+            currentTotal + contribution,
+          )
+        }
+      } else {
+        // 没有可选属性，直接添加
+        const value = attributes[part.attribute]
+        const contribution = value * part.multiplier
+        generateCombinations(
+          parts,
+          index + 1,
+          [...currentParts, `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`],
+          currentTotal + contribution,
+        )
+      }
+    }
+
+    generateCombinations(profession.skillFormulas, 0, [], 0)
+
+    // 去重（相同的公式和总值）
+    const uniqueVariants = variants.filter(
+      (v, i, self) => i === self.findIndex(t => t.formula === v.formula && t.total === v.total)
+    )
+
+    return uniqueVariants
+  }, [attributes, profession])
 
   // 当前类型的剩余点数
   const remainingPoints =
@@ -124,13 +266,13 @@ const SkillAllocationComponent = ({
     const otherAlloc = allocationType === 'occupation' ? perAllocation : occAllocation
     const totalNewPoints = newTypePoints + (otherAlloc[skillId] || 0)
 
-    // 验证
+    // 验证（使用最终确定的职业技能）
     const validation = validateSkillAllocation(
       skillId,
       totalNewPoints,
       attributes,
       allocation,
-      profession,
+      finalProfession,
     )
 
     if (!validation.valid) {
@@ -171,7 +313,7 @@ const SkillAllocationComponent = ({
 
       const initial = calculateSkillInitialValue(skillId, attributes)
       const current = initial + getTotalAllocated(skillId)
-      const max = getSkillMaxValue(skillId, profession)
+      const max = getSkillMaxValue(skillId, finalProfession)
 
       if (current + 5 <= max) {
         newOccAllocation[skillId] = (newOccAllocation[skillId] || 0) + 5
@@ -193,7 +335,7 @@ const SkillAllocationComponent = ({
 
       const initial = calculateSkillInitialValue(skillId, attributes)
       const current = initial + getTotalAllocated(skillId)
-      const max = getSkillMaxValue(skillId, profession)
+      const max = getSkillMaxValue(skillId, finalProfession)
 
       if (current + 5 <= max) {
         newPerAllocation[skillId] = (newPerAllocation[skillId] || 0) + 5
@@ -217,11 +359,167 @@ const SkillAllocationComponent = ({
   // 是否可以完成
   const canComplete = remainingOccupation === 0 && remainingPersonal === 0
 
+  // 处理可选技能选择
+  const handleOptionalSkillToggle = (groupIndex: number, skillId: string) => {
+    setSelectedOptionalSkills((prev) => {
+      const current = prev[groupIndex] || []
+      const group = profession.optionalSkillGroups?.[groupIndex]
+      if (!group) return prev
+
+      const isSelected = current.includes(skillId)
+      let newSelection: string[]
+
+      if (isSelected) {
+        // 取消选择
+        newSelection = current.filter(id => id !== skillId)
+      } else {
+        // 检查是否已达到选择数量限制
+        if (current.length >= group.count) {
+          return prev // 已达到上限，不添加
+        }
+        newSelection = [...current, skillId]
+      }
+
+      return {
+        ...prev,
+        [groupIndex]: newSelection,
+      }
+    })
+  }
+
+  // 检查可选技能选择是否完成
+  const canProceedToAllocation = useMemo(() => {
+    if (!profession.optionalSkillGroups || profession.optionalSkillGroups.length === 0) {
+      return true
+    }
+    return profession.optionalSkillGroups.every((group, index) => {
+      const selected = selectedOptionalSkills[index] || []
+      return selected.length === group.count
+    })
+  }, [profession.optionalSkillGroups, selectedOptionalSkills])
+
+  // 进入点数分配步骤
+  const handleProceedToAllocation = () => {
+    if (canProceedToAllocation) {
+      setStep('allocate-points')
+    }
+  }
+
+  // 返回选择可选技能步骤
+  const handleBackToSelection = () => {
+    setStep('select-optional')
+  }
+
+  // 渲染可选技能选择界面
+  const renderOptionalSkillSelection = () => {
+    if (!profession.optionalSkillGroups || profession.optionalSkillGroups.length === 0) {
+      return null
+    }
+
+    return (
+      <div className={styles.optionalSelectionSection}>
+        <h3 className={styles.sectionTitle}>选择职业技能</h3>
+        <p className={styles.sectionDescription}>
+          请从以下可选技能组中选择你的职业技能。选择完成后，这些技能将加入你的职业技能列表，然后可以分配技能点。
+        </p>
+
+        {profession.optionalSkillGroups.map((group, groupIndex) => {
+          const selected = selectedOptionalSkills[groupIndex] || []
+          const isComplete = selected.length === group.count
+
+          if (group.type === 'specific' && group.skillIds) {
+            return (
+              <div key={groupIndex} className={styles.optionalGroup}>
+                <h4 className={styles.groupTitle}>
+                  下面任选 {group.count} 项：
+                  {isComplete && <span className={styles.completeBadge}>✓ 已完成</span>}
+                </h4>
+                <div className={styles.optionalSkillsList}>
+                  {group.skillIds.map((skillId) => {
+                    const skill = getSkillById(skillId)
+                    if (!skill) return null
+                    const isSelected = selected.includes(skillId)
+                    return (
+                      <Card
+                        key={skillId}
+                        variant={isSelected ? 'elevated' : 'outlined'}
+                        padding="sm"
+                        className={`${styles.optionalSkillCard} ${isSelected ? styles.selected : ''}`}
+                        onClick={() => handleOptionalSkillToggle(groupIndex, skillId)}
+                      >
+                        <div className={styles.optionalSkillContent}>
+                          <span className={styles.optionalSkillName}>{skill.name}</span>
+                          {isSelected && <span className={styles.selectedBadge}>✓</span>}
+                        </div>
+                      </Card>
+                    )
+                  })}
+                </div>
+                <div className={styles.groupProgress}>
+                  已选择 {selected.length} / {group.count}
+                </div>
+              </div>
+            )
+          }
+
+          // 其他类型的可选技能组（暂时只支持 specific 类型）
+          return null
+        })}
+
+        <div className={styles.selectionActions}>
+          <Button
+            variant="primary"
+            onClick={handleProceedToAllocation}
+            disabled={!canProceedToAllocation}
+            fullWidth
+          >
+            {canProceedToAllocation
+              ? '确认选择，开始分配技能点 →'
+              : '请完成所有可选技能的选择'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // 如果还在选择可选技能步骤，只显示选择界面
+  if (step === 'select-optional') {
+    return (
+      <Card variant="default" padding="md" className={styles.container}>
+        <PageHeader title="选择职业技能" onBack={onBack} />
+        <div className={styles.content}>
+          {renderOptionalSkillSelection()}
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Card variant="default" padding="md" className={styles.container}>
-      <PageHeader title="分配技能" onBack={onBack} />
+      <PageHeader title="分配技能" onBack={profession.optionalSkillGroups && profession.optionalSkillGroups.length > 0 ? handleBackToSelection : onBack} />
 
       <div className={styles.content}>
+        {/* 职业点数计算公式展示 */}
+        <div className={styles.formulaSection}>
+          <h3 className={styles.formulaTitle}>职业点数计算公式</h3>
+          {formulaVariants.length === 1 ? (
+            <div className={styles.formulaText}>
+              {formulaVariants[0].formula} = {formulaVariants[0].total}
+            </div>
+          ) : (
+            <div className={styles.formulaVariants}>
+              {formulaVariants.map((variant, idx) => (
+                <div key={idx} className={styles.formulaVariant}>
+                  {variant.formula} = {variant.total}
+                  {idx === 0 && (
+                    <span className={styles.formulaNote}>（当前使用，取较大值）</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* 技能点预算显示 */}
         <div className={styles.budgetSection}>
           <div className={styles.budgetCards}>
@@ -287,7 +585,7 @@ const SkillAllocationComponent = ({
                   const currentTypeAlloc = allocationType === 'occupation' ? occAllocation : perAllocation
                   const allocatedPoints = currentTypeAlloc[skill.id] || 0
                   const totalAllocated = allocation[skill.id] || 0
-                  const maxValue = getSkillMaxValue(skill.id, profession)
+                  const maxValue = getSkillMaxValue(skill.id, finalProfession)
                   const canIncrease =
                     canAllocateSkillPoints(skill.id) &&
                     currentValue < maxValue &&
@@ -306,7 +604,7 @@ const SkillAllocationComponent = ({
                           <h4 className={styles.skillName}>{skill.name}</h4>
                           <span className={styles.skillBase}>
                             基础 {initialValue}
-                            {profession.signatureSkills.includes(skill.id) && (
+                            {finalSignatureSkills.includes(skill.id) && (
                               <span className={styles.signatureBadge}>职业</span>
                             )}
                           </span>

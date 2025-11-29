@@ -429,3 +429,36 @@ export const getSkillIdByName = (name: string): string | undefined => {
   return undefined
 }
 
+/**
+ * 获取某个父技能的所有子技能
+ * 例如：如果父技能是"射击"，返回所有"射击（xxx）"的技能
+ */
+export const getChildSkills = (parentSkillId: string): SkillDefinition[] => {
+  const parentSkill = getSkillById(parentSkillId)
+  if (!parentSkill) return []
+
+  // 提取父技能的基础名称（去掉括号部分）
+  const parentBaseName = parentSkill.name.replace(/[（(].*?[）)]/g, '').trim()
+
+  // 查找所有以"父技能名（"开头的技能
+  return SKILLS.filter((skill) => {
+    // 跳过父技能本身
+    if (skill.id === parentSkillId) return false
+
+    // 检查是否是子技能：名称以"父技能名（"开头
+    return skill.name.startsWith(parentBaseName + '（') || skill.name.startsWith(parentBaseName + '(')
+  })
+}
+
+/**
+ * 检查一个技能是否是另一个技能的子技能
+ */
+export const isChildSkill = (childSkillId: string, parentSkillId: string): boolean => {
+  const childSkill = getSkillById(childSkillId)
+  const parentSkill = getSkillById(parentSkillId)
+  if (!childSkill || !parentSkill) return false
+
+  const parentBaseName = parentSkill.name.replace(/[（(].*?[）)]/g, '').trim()
+  return childSkill.name.startsWith(parentBaseName + '（') || childSkill.name.startsWith(parentBaseName + '(')
+}
+

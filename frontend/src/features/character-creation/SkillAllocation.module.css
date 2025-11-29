@@ -10,6 +10,51 @@
   gap: 1.5rem;
 }
 
+/* 公式展示 */
+.formulaSection {
+  padding: 1rem;
+  background: var(--color-bg-secondary, #f9f9f9);
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.formulaTitle {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #333);
+}
+
+.formulaText {
+  font-size: 0.95rem;
+  color: var(--color-text, #333);
+  font-family: monospace;
+}
+
+.formulaVariants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formulaVariant {
+  font-size: 0.95rem;
+  color: var(--color-text, #333);
+  font-family: monospace;
+  padding: 0.5rem;
+  background: var(--color-panel, #fff);
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.formulaNote {
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #666);
+  font-style: italic;
+  font-family: sans-serif;
+}
+
 /* 预算显示 */
 .budgetSection {
   display: flex;
@@ -301,5 +346,99 @@
   .actions {
     padding-top: 0.75rem;
   }
+}
+
+/* 可选技能选择界面 */
+.optionalSelectionSection {
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text, #333);
+}
+
+.sectionDescription {
+  color: var(--color-text-secondary, #666);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.optionalGroup {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--color-bg-secondary, #f9f9f9);
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.groupTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--color-text, #333);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.completeBadge {
+  font-size: 0.875rem;
+  color: var(--color-success, #22c55e);
+  font-weight: normal;
+}
+
+.optionalSkillsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.optionalSkillCard {
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.optionalSkillCard:hover {
+  border-color: var(--color-primary, #3b82f6);
+  transform: translateY(-2px);
+}
+
+.optionalSkillCard.selected {
+  border-color: var(--color-primary, #3b82f6);
+  background: var(--color-primary-light, #eff6ff);
+}
+
+.optionalSkillContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.optionalSkillName {
+  font-weight: 500;
+  color: var(--color-text, #333);
+}
+
+.selectedBadge {
+  color: var(--color-primary, #3b82f6);
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.groupProgress {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #666);
+  text-align: right;
+}
+
+.selectionActions {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border, #ddd);
 }
 

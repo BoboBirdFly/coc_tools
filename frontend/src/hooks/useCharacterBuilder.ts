@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer } from 'react'
-import { DEFAULT_ATTRIBUTES, STORAGE_KEYS } from '@data/constants'
+import { FALLBACK_ATTRIBUTES, STORAGE_KEYS } from '@data/constants'
 import { UI_TEXT } from '@data/i18n'
 import { FULL_PROFESSIONS } from '@data/professions-full'
 import { calculateCharacter } from '@services/calculator'
@@ -33,27 +33,45 @@ const buildCalculated = (form: BaseCharacterInput): CalculatedCharacter => {
 }
 
 /**
- * 初始化状态：优先从 localStorage 恢复，否则使用默认值
+ * 检查属性是否为空对象
+ */
+const isEmptyAttributes = (attrs: BaseCharacterInput['attributes']): boolean => {
+  return !attrs || Object.keys(attrs).length === 0
+}
+
+/**
+ * 初始化状态：优先从 localStorage 恢复，否则使用空值
  */
 const makeInitialState = (): BuilderState => {
   const saved = getLocalStorageItem<BaseCharacterInput>(STORAGE_KEY)
   const form: BaseCharacterInput = saved
     ? {
         ...saved,
-      // 确保所有属性都有值（合并默认值）
-        attributes: { ...DEFAULT_ATTRIBUTES, ...saved.attributes },
+      // 如果保存的数据有属性，使用保存的属性；否则为空对象
+      attributes: saved.attributes && !isEmptyAttributes(saved.attributes)
+        ? saved.attributes
+        : ({} as BaseCharacterInput['attributes']),
       // 保留技能分配
       skills: saved.skills || {},
       }
     : {
       name: UI_TEXT.defaultCharacterName,
       professionId: FULL_PROFESSIONS[0].id,
-        attributes: { ...DEFAULT_ATTRIBUTES },
+      attributes: {} as BaseCharacterInput['attributes'],
       skills: {},
       }
+
+  // 如果属性为空，计算时使用兜底值（仅用于计算，不保存到form）
+  const formForCalculation: BaseCharacterInput = {
+    ...form,
+    attributes: !isEmptyAttributes(form.attributes)
+      ? form.attributes
+      : FALLBACK_ATTRIBUTES,
+  }
+
   return {
     form,
-    calculated: buildCalculated(form),
+    calculated: buildCalculated(formForCalculation),
   }
 }
 

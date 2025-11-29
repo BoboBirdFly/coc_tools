@@ -5,21 +5,21 @@ import type { AttributeMap } from '@schema/character'
  * 统一管理数值常量、验证规则、存储键名等
  */
 
-// 默认属性值
-export const DEFAULT_ATTRIBUTES: AttributeMap = {
-  str: 60,
-  con: 55,
-  dex: 50,
-  int: 60,
-  pow: 50,
-  siz: 60,
-  app: 50,
-  edu: 65,
+// 兜底属性值（用于计算，当属性为空时使用）
+export const FALLBACK_ATTRIBUTES: AttributeMap = {
+  str: 0,
+  con: 0,
+  dex: 0,
+  int: 0,
+  pow: 0,
+  siz: 0,
+  app: 0,
+  edu: 0,
 }
 
 // 属性验证规则（COC7th 规则）
 export const ATTRIBUTE_RULES = {
-  min: 15,
+  min: 30,
   max: 90,
   step: 5,
 } as const

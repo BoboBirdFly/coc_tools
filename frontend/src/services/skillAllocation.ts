@@ -1,6 +1,6 @@
 import { SKILLS } from '@data/skills'
 import type { AttributeMap, SkillAllocation, SkillDefinition, Profession } from '@schema/character'
-import { getSkillById } from '@data/skills'
+import { getSkillById, getChildSkills, isChildSkill } from '@data/skills'
 
 // 特殊技能ID
 export const SPECIAL_SKILLS = {
@@ -129,7 +129,17 @@ export const calculateUsedSkillPoints = (
     if (!skill) continue
 
     // 判断技能点类型
-    const isSignatureSkill = profession?.signatureSkills.includes(skillId) ?? false
+    // 如果技能本身在职业技能中，或者是某个职业技能的子技能，都视为职业技能
+    let isSignatureSkill = profession?.signatureSkills.includes(skillId) ?? false
+    if (!isSignatureSkill && profession?.signatureSkills) {
+      // 检查是否是某个职业技能的子技能
+      for (const parentSkillId of profession.signatureSkills) {
+        if (isChildSkill(skillId, parentSkillId)) {
+          isSignatureSkill = true
+          break
+        }
+      }
+    }
 
     if (type === 'occupation') {
       // 职业技能点只能分配给职业职业技能
@@ -138,7 +148,8 @@ export const calculateUsedSkillPoints = (
       }
     } else {
       // 兴趣技能点可以分配给所有技能（除了职业职业技能）
-      if (!isSignatureSkill) {
+      // 但信用评级是特殊情况：即使它是职业技能，也可以用兴趣技能点加
+      if (!isSignatureSkill || skillId === SPECIAL_SKILLS.CREDIT_RATING) {
         used += points
       }
     }
@@ -150,17 +161,36 @@ export const calculateUsedSkillPoints = (
 /**
  * 获取可以分配职业技能点的技能列表
  * 信用评级可以用职业技能点加
+ * 如果职业技能包含父技能（如"射击"），则自动包含所有子技能（如"射击（手枪）"、"射击（步枪/散弹枪）"）
  */
 export const getOccupationSkillList = (profession?: Profession): SkillDefinition[] => {
   if (!profession) return []
-  const skills = profession.signatureSkills
-    .map((skillId) => getSkillById(skillId))
-    .filter((skill): skill is SkillDefinition => Boolean(skill))
+  const skillSet = new Set<string>()
+  const skills: SkillDefinition[] = []
+
+  // 添加职业技能
+  for (const skillId of profession.signatureSkills) {
+    const skill = getSkillById(skillId)
+    if (skill && !skillSet.has(skillId)) {
+      skills.push(skill)
+      skillSet.add(skillId)
+
+      // 如果这个技能有子技能，也添加所有子技能
+      const childSkills = getChildSkills(skillId)
+      for (const childSkill of childSkills) {
+        if (!skillSet.has(childSkill.id)) {
+          skills.push(childSkill)
+          skillSet.add(childSkill.id)
+        }
+      }
+    }
+  }
 
   // 如果信用评级不在职业技能中，也添加进来
   const creditRating = getSkillById(SPECIAL_SKILLS.CREDIT_RATING)
-  if (creditRating && !profession.signatureSkills.includes(SPECIAL_SKILLS.CREDIT_RATING)) {
+  if (creditRating && !skillSet.has(SPECIAL_SKILLS.CREDIT_RATING)) {
     skills.push(creditRating)
+    skillSet.add(SPECIAL_SKILLS.CREDIT_RATING)
   }
 
   return skills

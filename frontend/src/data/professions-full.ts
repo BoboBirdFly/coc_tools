@@ -1,4 +1,4 @@
-import type { Profession } from '@schema/character'
+import type { AttributeKey, Profession, OptionalSkillGroup, OptionalSkillType } from '@schema/character'
 import { ATTRIBUTE_NAME_TO_KEY } from '@data/i18n'
 import { getSkillIdByName } from './skills'
 
@@ -29,26 +29,47 @@ export interface FullProfession extends Profession {
  * - "教育 ×4"
  * - "教育 ×2 ＋敏捷 ×2"
  * - "教育 ×2 ＋力量或敏捷 ×2" (取较大值)
+ * - "教育 ×2 ＋外貌或敏捷或力量 ×2" (取较大值)
  */
 const parseSkillFormula = (formula: string): Profession['skillFormulas'] => {
   const parts: Profession['skillFormulas'] = []
-  
-  // 处理 "或" 的情况（取较大值，这里简化为第一个）
-  const cleanFormula = formula.replace(/或[^＋]+/g, '').trim()
-  
+
   // 分割 "＋" 或 "+"
-  const segments = cleanFormula.split(/[＋+]/).map(s => s.trim())
+  const segments = formula.split(/[＋+]/).map(s => s.trim())
   
   for (const segment of segments) {
     const match = segment.match(/([^×]+)×(\d+)/)
     if (match) {
-      const attrName = match[1].trim()
+      const attrPart = match[1].trim()
       const multiplier = parseInt(match[2], 10)
       
-      // 使用公共配置映射中文属性名到英文键
-      const attrKey = ATTRIBUTE_NAME_TO_KEY[attrName]
-      if (attrKey) {
-        parts.push({ attribute: attrKey, multiplier })
+      // 检查是否有"或"
+      if (attrPart.includes('或')) {
+        // 处理"或"的情况：解析所有可能的属性
+        const attrNames = attrPart.split('或').map(s => s.trim())
+        const attrKeys: AttributeKey[] = []
+
+        for (const attrName of attrNames) {
+          const attrKey = ATTRIBUTE_NAME_TO_KEY[attrName]
+          if (attrKey) {
+            attrKeys.push(attrKey)
+          }
+        }
+
+        if (attrKeys.length > 0) {
+          // 第一个属性作为主属性，其他作为可选属性
+          parts.push({
+            attribute: attrKeys[0],
+            multiplier,
+            alternativeAttributes: attrKeys.slice(1),
+          })
+        }
+      } else {
+        // 没有"或"，直接解析
+        const attrKey = ATTRIBUTE_NAME_TO_KEY[attrPart]
+        if (attrKey) {
+          parts.push({ attribute: attrKey, multiplier })
+        }
       }
     }
   }
@@ -72,13 +93,145 @@ const parseCreditRange = (rangeStr: string): CreditRange => {
 }
 
 /**
- * 解析技能列表字符串
- * 格式："会计，法律，图书馆，聆听，说服，侦查，任意其他两项个人或时代特长"
- * 返回技能ID数组
+ * 解析可选技能组
+ * 返回解析结果：必需技能和可选技能组
  */
-const parseSkills = (skillsStr: string): string[] => {
-  // 移除"任意其他X项"等描述，只保留具体技能
-  const cleanStr = skillsStr.replace(/任意.*?特长/g, '').trim()
+const parseOptionalSkillGroup = (
+  groupStr: string,
+): { type: OptionalSkillType; count: number; skillIds?: string[]; skillId?: string; fixedSubItems?: string[]; description?: string } | null => {
+  // 1. 明确选项列表：下面任选X项：技能1、技能2、技能3
+  // 支持中文数字：一、二、三、四、五、六、七、八、九、十、两
+  const chineseNumbers: Record<string, number> = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+    '两': 2, '壹': 1, '贰': 2, '叁': 3, '肆': 4, '伍': 5,
+    '陆': 6, '柒': 7, '捌': 8, '玖': 9, '拾': 10,
+  }
+  const specificMatch = groupStr.match(/下面任选([\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾]+)项[：:](.+)/u)
+  if (specificMatch) {
+    // 解析数字（支持中文数字）
+    const countStr = specificMatch[1]
+    let count: number
+    if (/^\d+$/.test(countStr)) {
+      count = parseInt(countStr, 10)
+    } else {
+      count = chineseNumbers[countStr] || parseInt(countStr, 10) || 0
+    }
+    const skillsStr = specificMatch[2].trim()
+    const skillNames = skillsStr.split(/[，,、]/).map(s => s.trim()).filter(s => s.length > 0)
+    const skillIds: string[] = []
+    for (const name of skillNames) {
+      const skillId = getSkillIdByName(name)
+      if (skillId) {
+        skillIds.push(skillId)
+      } else {
+        const baseName = name.replace(/[（(].*?[）)]/g, '').trim()
+        const baseSkillId = getSkillIdByName(baseName)
+        if (baseSkillId) {
+          skillIds.push(baseSkillId)
+        }
+      }
+    }
+    if (skillIds.length > 0) {
+      return { type: 'specific', count, skillIds }
+    }
+  }
+
+  // 2. 个人或时代特长：任意X项其他个人或时代特长
+  const personalEraMatch = groupStr.match(/任意.*?(\d+)项.*?个人.*?时代.*?特长/)
+  if (personalEraMatch) {
+    return { type: 'personal-or-era', count: parseInt(personalEraMatch[1], 10) }
+  }
+
+  // 3. 全技能开放：任意X项其他技能
+  const allMatch = groupStr.match(/任意.*?(\d+)项.*?其他技能(?!.*?(?:个人|时代|学术|科学))/)
+  if (allMatch) {
+    return { type: 'all', count: parseInt(allMatch[1], 10) }
+  }
+
+  // 4. 学术/个人/时代混合：任意X项其他学术、个人或时代特长
+  const academicPersonalEraMatch = groupStr.match(/任意.*?(\d+)项.*?(?:学术|个人|时代).*?(?:学术|个人|时代).*?特长/)
+  if (academicPersonalEraMatch) {
+    return { type: 'academic-personal-era', count: parseInt(academicPersonalEraMatch[1], 10) }
+  }
+
+  // 5. 学术领域：任意X项其他学术领域
+  const academicMatch = groupStr.match(/任意.*?(\d+)项.*?学术领域/)
+  if (academicMatch) {
+    return { type: 'academic', count: parseInt(academicMatch[1], 10) }
+  }
+
+  // 6. 科学专业：任意X项科学专业领域
+  const scienceMatch = groupStr.match(/任意.*?(\d+)项.*?科学专业领域/)
+  if (scienceMatch) {
+    return { type: 'science', count: parseInt(scienceMatch[1], 10) }
+  }
+
+  // 7. 自由选择：X个和学习内容相关的专业技能
+  const freeMatch = groupStr.match(/(\d+)个.*?相关.*?专业/)
+  if (freeMatch) {
+    return { type: 'free', count: parseInt(freeMatch[1], 10), description: groupStr }
+  }
+
+  // 8. 技能子项：科学（化学和任意两项）
+  const subsetMatch = groupStr.match(/([^（(]+)（([^和]+)和任意(\d+)项）/)
+  if (subsetMatch) {
+    const skillName = subsetMatch[1].trim()
+    const fixedItem = subsetMatch[2].trim()
+    const count = parseInt(subsetMatch[3], 10)
+    const skillId = getSkillIdByName(skillName)
+    const fixedSubItem = getSkillIdByName(fixedItem)
+    if (skillId) {
+      return {
+        type: 'skill-subset',
+        count,
+        skillId,
+        fixedSubItems: fixedSubItem ? [fixedSubItem] : [],
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * 解析技能列表字符串
+ * 格式："会计，法律，图书馆，聆听，说服，侦查，下面任选两项：急救、机械维修、外语"
+ * 返回必需技能和可选技能组
+ */
+const parseSkills = (
+  skillsStr: string,
+): { requiredSkills: string[]; optionalGroups: OptionalSkillGroup[] } => {
+  const optionalGroups: OptionalSkillGroup[] = []
+
+  // 提取所有可选项模式
+  const optionalPatterns = [
+    /下面任选[\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾]+项[：:].+/u, // 明确选项列表
+    /任意.*?(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)项.*?个人.*?时代.*?特长/, // 个人或时代
+    /任意.*?(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)项.*?其他技能(?!.*?(?:个人|时代|学术|科学))/, // 全技能
+    /任意.*?(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)项.*?(?:学术|个人|时代).*?(?:学术|个人|时代).*?特长/, // 学术/个人/时代混合
+    /任意.*?(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)项.*?学术领域/, // 学术领域
+    /任意.*?(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)项.*?科学专业领域/, // 科学专业
+    /(\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾)个.*?相关.*?专业/, // 自由选择
+    /[^（(]+（[^和]+和任意\d一二三四五六七八九十两壹贰叁肆伍陆柒捌玖拾项）/, // 技能子项
+  ]
+
+  let requiredSkillsStr = skillsStr
+  for (const pattern of optionalPatterns) {
+    const match = requiredSkillsStr.match(pattern)
+    if (match) {
+      const groupStr = match[0]
+      const group = parseOptionalSkillGroup(groupStr)
+      if (group) {
+        optionalGroups.push(group as OptionalSkillGroup)
+      }
+      // 移除可选项部分
+      requiredSkillsStr = requiredSkillsStr.replace(new RegExp('，?' + groupStr.replace(/[()[\]{}]/g, '\\$&')), '').trim()
+    }
+  }
+
+  // 解析必需技能
+  const cleanStr = requiredSkillsStr.replace(/任意.*?特长/g, '').trim()
   const skillNames = cleanStr
     .split(/[，,]/)
     .map(s => s.trim())
@@ -101,7 +254,7 @@ const parseSkills = (skillsStr: string): string[] => {
     }
   }
 
-  return skillIds
+  return { requiredSkills: skillIds, optionalGroups }
 }
 
 // COC7th 完整职业数据（从调查员手册提取）
@@ -114,7 +267,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-70'),
     recommendedContacts: ['生意伙伴', '法律界', '金融业界（银行，其他会计师）'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，法律，图书馆，聆听，说服，侦查'),
+    signatureSkills: parseSkills('会计，法律，图书馆，聆听，说服，侦查，任意其他两项个人或时代特长').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，法律，图书馆，聆听，说服，侦查，任意其他两项个人或时代特长').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -127,7 +281,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['业余运动员圈', '体育专栏作家', '马戏团', '嘉年华管理者'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷 ×2'),
-    signatureSkills: parseSkills('攀爬，闪避，跳跃，投掷，侦查，游泳'),
+    signatureSkills: parseSkills('攀爬，闪避，跳跃，投掷，侦查，游泳，任意两项其他个人或时代特长').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，闪避，跳跃，投掷，侦查，游泳，任意两项其他个人或时代特长').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -140,7 +295,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-40'),
     recommendedContacts: ['戏剧产业', '报刊艺术批评家', '演员公会'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术（表演），乔装，格斗，历史，心理学'),
+    signatureSkills: parseSkills('艺术（表演），乔装，格斗，历史，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演），乔装，格斗，历史，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -154,7 +310,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-90'),
     recommendedContacts: ['电影工作室', '媒体评论员', '作家'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术（表演），乔装，汽车驾驶，心理学'),
+    signatureSkills: parseSkills('艺术（表演），乔装，汽车驾驶，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演），乔装，汽车驾驶，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -168,7 +325,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-45'),
     recommendedContacts: ['本地执法机构', '客户'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量或敏捷 ×2'),
-    signatureSkills: parseSkills('格斗（斗殴），射击，法律，图书馆，心理学，潜行，追踪'),
+    signatureSkills: parseSkills('格斗（斗殴），射击，法律，图书馆，心理学，潜行，追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('格斗（斗殴），射击，法律，图书馆，心理学，潜行，追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -181,7 +339,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-60'),
     recommendedContacts: ['其他精神疾病研究者', '医生', '有时还有执法机构的侦探'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('法律，聆听，医学，外语，精神分析，心理学，科学（生物学，化学）'),
+    signatureSkills: parseSkills('法律，聆听，医学，外语，精神分析，心理学，科学（生物学，化学）').requiredSkills,
+    optionalSkillGroups: parseSkills('法律，聆听，医学，外语，精神分析，心理学，科学（生物学，化学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'classic',
@@ -194,7 +353,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-40'),
     recommendedContacts: ['动物园', '马戏团', '赞助人', '演员'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或意志 ×2'),
-    signatureSkills: parseSkills('跳跃，聆听，博物学，动物驯养，科学（动物学），潜行，追踪'),
+    signatureSkills: parseSkills('跳跃，聆听，博物学，动物驯养，科学（动物学），潜行，追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('跳跃，聆听，博物学，动物驯养，科学（动物学），潜行，追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -207,7 +367,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-70'),
     recommendedContacts: ['书商', '古董收藏者', '历史研究学会'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('估价，艺术/工艺（任一），历史，图书馆，外语，侦查'),
+    signatureSkills: parseSkills('估价，艺术/工艺（任一），历史，图书馆，外语，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('估价，艺术/工艺（任一），历史，图书馆，外语，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -220,7 +381,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-50'),
     recommendedContacts: ['本地的历史学家', '其他古董商', '可能还包括赝造师'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，估价，汽车驾驶，历史，图书馆，导航'),
+    signatureSkills: parseSkills('会计，估价，汽车驾驶，历史，图书馆，导航').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，估价，汽车驾驶，历史，图书馆，导航').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -233,7 +395,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-40'),
     recommendedContacts: ['赞助人', '博物馆', '大学'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('估价，考古，历史，外语，图书馆，侦查，机械维修，导航或科学（任一）'),
+    signatureSkills: parseSkills('估价，考古，历史，外语，图书馆，侦查，机械维修，导航或科学（任一）').requiredSkills,
+    optionalSkillGroups: parseSkills('估价，考古，历史，外语，图书馆，侦查，机械维修，导航或科学（任一）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -246,7 +409,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-70'),
     recommendedContacts: ['本地建设和城市规划部门', '建筑公司'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，工艺（技术制图），法律，母语，计算机或图书馆，说服，心理学，科学（数学）'),
+    signatureSkills: parseSkills('会计，工艺（技术制图），法律，母语，计算机或图书馆，说服，心理学，科学（数学）').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，工艺（技术制图），法律，母语，计算机或图书馆，说服，心理学，科学（数学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -259,7 +423,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-50'),
     recommendedContacts: ['美术馆', '美术批评家', '富有的赞助人', '广告业者'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或意志 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），历史或博物学，外语，心理学，侦查'),
+    signatureSkills: parseSkills('艺术/工艺（任一），历史或博物学，外语，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），历史或博物学，外语，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -272,7 +437,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('8-20'),
     recommendedContacts: ['医护人员', '患者和患者家属'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量或敏捷 ×2'),
-    signatureSkills: parseSkills('闪避，格斗（斗殴），急救，聆听，心理学，潜行'),
+    signatureSkills: parseSkills('闪避，格斗（斗殴），急救，聆听，心理学，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('闪避，格斗（斗殴），急救，聆听，心理学，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -285,7 +451,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-70'),
     recommendedContacts: ['体育界', '体育专栏作家', '其他明星'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，跳跃，格斗（斗殴），骑术，游泳，投掷'),
+    signatureSkills: parseSkills('攀爬，跳跃，格斗（斗殴），骑术，游泳，投掷').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，跳跃，格斗（斗殴），骑术，游泳，投掷').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -298,7 +465,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['出版社', '文学评论家', '历史学家等'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('艺术（文学），历史，图书馆，博物学或神秘学，外语，母语，心理学'),
+    signatureSkills: parseSkills('艺术（文学），历史，图书馆，博物学或神秘学，外语，母语，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（文学），历史，图书馆，博物学或神秘学，外语，母语，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -311,7 +479,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('8-25'),
     recommendedContacts: ['常客', '可能有犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('会计，格斗（斗殴），聆听，心理学，侦查'),
+    signatureSkills: parseSkills('会计，格斗（斗殴），聆听，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，格斗（斗殴），聆听，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -324,7 +493,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-50'),
     recommendedContacts: ['外国政府官员', '狩猎监管人员', '前客户（大多很有钱）', '黑市商人与黑社会', '动物园主'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('射击，聆听或侦查，博物学，导航，外语或生存（任一），科学（生物学或植物学），潜行，追踪'),
+    signatureSkills: parseSkills('射击，聆听或侦查，博物学，导航，外语或生存（任一），科学（生物学或植物学），潜行，追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('射击，聆听或侦查，博物学，导航，外语或生存（任一），科学（生物学或植物学），潜行，追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -337,7 +507,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['目录学家', '其他书商', '图书馆和大学', '客户'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，估价，汽车驾驶，历史，图书馆，母语，外语'),
+    signatureSkills: parseSkills('会计，估价，汽车驾驶，历史，图书馆，母语，外语').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，估价，汽车驾驶，历史，图书馆，母语，外语').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -350,7 +521,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['保释业者', '本地警察', '线人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('汽车驾驶，电子学或电气维修，格斗或射击，法律，心理学，追踪，潜行'),
+    signatureSkills: parseSkills('汽车驾驶，电子学或电气维修，格斗或射击，法律，心理学，追踪，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，电子学或电气维修，格斗或射击，法律，心理学，追踪，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -363,7 +535,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-60'),
     recommendedContacts: ['运动会主办者', '记者', '犯罪组织', '专业训练人员'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量 ×2'),
-    signatureSkills: parseSkills('闪避，格斗（斗殴），恐吓，跳跃，心理学，侦查'),
+    signatureSkills: parseSkills('闪避，格斗（斗殴），恐吓，跳跃，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('闪避，格斗（斗殴），恐吓，跳跃，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -376,7 +549,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-40'),
     recommendedContacts: ['其他家政服务人员', '本地企业', '家庭用品供应商'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计或估价，艺术/工艺（任一），急救，聆听，心理学，侦查'),
+    signatureSkills: parseSkills('会计或估价，艺术/工艺（任一），急救，聆听，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计或估价，艺术/工艺（任一），急救，聆听，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -389,7 +563,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-60'),
     recommendedContacts: ['教会高层', '地方教会', '社区领导'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，历史，图书馆，聆听，外语，心理学'),
+    signatureSkills: parseSkills('会计，历史，图书馆，聆听，外语，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，历史，图书馆，聆听，外语，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -402,7 +577,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-70'),
     recommendedContacts: ['其他 IT 工作者', '同事和上司', '专业网络社区'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('计算机，电气维修，电子学，图书馆，科学（数学），侦查'),
+    signatureSkills: parseSkills('计算机，电气维修，电子学，图书馆，科学（数学），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('计算机，电气维修，电子学，图书馆，科学（数学），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'modern',
@@ -415,7 +591,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-70'),
     recommendedContacts: ['其他 IT 工作者', '专业网络社区', '政治团体', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('计算机，电气维修，电子学，图书馆，侦查'),
+    signatureSkills: parseSkills('计算机，电气维修，电子学，图书馆，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('计算机，电气维修，电子学，图书馆，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'modern',
@@ -428,7 +605,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['本地企业家', '州农业部门', '牛仔比赛主办者', '艺人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('闪避，格斗或射击，急救或博物学，跳跃，骑术，生存（任一），投掷，追踪'),
+    signatureSkills: parseSkills('闪避，格斗或射击，急救或博物学，跳跃，骑术，生存（任一），投掷，追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('闪避，格斗或射击，急救或博物学，跳跃，骑术，生存（任一），投掷，追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -441,7 +619,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-40'),
     recommendedContacts: ['本地商人', '其他工匠和艺术家'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷 ×2'),
-    signatureSkills: parseSkills('会计，艺术/工艺（任二），机械维修，博物学，侦查'),
+    signatureSkills: parseSkills('会计，艺术/工艺（任二），机械维修，博物学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，艺术/工艺（任二），机械维修，博物学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -454,7 +633,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-60'),
     recommendedContacts: ['很少，大都是黑社会的人，人们尽量避免和他们交情过深'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('乔装，电气维修，格斗，射击，锁匠，机械维修，潜行，心理学'),
+    signatureSkills: parseSkills('乔装，电气维修，格斗，射击，锁匠，机械维修，潜行，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('乔装，电气维修，格斗，射击，锁匠，机械维修，潜行，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -467,7 +647,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-75'),
     recommendedContacts: ['同伙（不论是现在还是以前的）', '独行罪犯', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量或敏捷 ×2'),
-    signatureSkills: parseSkills('汽车驾驶，电气维修或机械维修，格斗，射击，恐吓，锁匠，操作重型机械'),
+    signatureSkills: parseSkills('汽车驾驶，电气维修或机械维修，格斗，射击，恐吓，锁匠，操作重型机械').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，电气维修或机械维修，格斗，射击，恐吓，锁匠，操作重型机械').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -480,7 +661,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-30'),
     recommendedContacts: ['犯罪组织', '本地执法机构', '本地企业'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量 ×2'),
-    signatureSkills: parseSkills('汽车驾驶，格斗，射击，心理学，潜行，侦查'),
+    signatureSkills: parseSkills('汽车驾驶，格斗，射击，心理学，潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，格斗，射击，心理学，潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -493,7 +675,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-40'),
     recommendedContacts: ['赃物贩子', '其他的盗贼'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷 ×2'),
-    signatureSkills: parseSkills('估价，攀爬，电气维修或机械维修，聆听，锁匠，妙手，潜行，侦查'),
+    signatureSkills: parseSkills('估价，攀爬，电气维修或机械维修，聆听，锁匠，妙手，潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('估价，攀爬，电气维修或机械维修，聆听，锁匠，妙手，潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -506,7 +689,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-65'),
     recommendedContacts: ['其他的诈骗师', '独行罪犯'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('估价，艺术（表演），法律或外语，聆听，心理学，妙手'),
+    signatureSkills: parseSkills('估价，艺术（表演），法律或外语，聆听，心理学，妙手').requiredSkills,
+    optionalSkillGroups: parseSkills('估价，艺术（表演），法律或外语，聆听，心理学，妙手').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -519,7 +703,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-60'),
     recommendedContacts: ['主要的信徒都是普通人。不过首领的魅力越高，信徒当中有电影明星或者富有的寡妇之类名人的可能性就越大'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，神秘学，心理学，侦查'),
+    signatureSkills: parseSkills('会计，神秘学，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，神秘学，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -532,7 +717,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-50'),
     recommendedContacts: ['本地和国家的执法机构', '罪犯', '宗教团体'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，格斗（斗殴）或射击，历史，神秘学，心理学，潜行'),
+    signatureSkills: parseSkills('两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，格斗（斗殴）或射击，历史，神秘学，心理学，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，格斗（斗殴）或射击，历史，神秘学，心理学，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'modern',
@@ -545,7 +731,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-60'),
     recommendedContacts: ['广告业', '媒体', '家具业', '建筑业', '其他'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，艺术（摄影），艺术/工艺（任一），计算机或图书馆，机械维修，心理学，侦查'),
+    signatureSkills: parseSkills('会计，艺术（摄影），艺术/工艺（任一），计算机或图书馆，机械维修，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，艺术（摄影），艺术/工艺（任一），计算机或图书馆，机械维修，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -558,7 +745,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('50-99'),
     recommendedContacts: ['多种多样，但通常是背景和趣味相近的人', '同好会组织', '波希米亚主义者', '上流社会'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），射击，外语，骑术，一项社交技能（魅惑、话术、恐吓、说服）'),
+    signatureSkills: parseSkills('艺术/工艺（任一），射击，外语，骑术，一项社交技能（魅惑、话术、恐吓、说服）').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），射击，外语，骑术，一项社交技能（魅惑、话术、恐吓、说服）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -571,7 +759,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['海岸警卫队', '船长', '军队', '执法机构', '走私者'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷 ×2'),
-    signatureSkills: parseSkills('潜水，急救，机械维修，驾驶（船），科学（生物），侦查，游泳'),
+    signatureSkills: parseSkills('潜水，急救，机械维修，驾驶（船），科学（生物），侦查，游泳').requiredSkills,
+    optionalSkillGroups: parseSkills('潜水，急救，机械维修，驾驶（船），科学（生物），侦查，游泳').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -584,7 +773,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-80'),
     recommendedContacts: ['其他医生', '医护工作者', '病人和前病人'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）'),
+    signatureSkills: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）').requiredSkills,
+    optionalSkillGroups: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -597,7 +787,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-5'),
     recommendedContacts: ['其他流浪者', '少数友善的铁路工人', '城镇里众多的好心人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，跳跃，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），潜行'),
+    signatureSkills: parseSkills('攀爬，跳跃，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，跳跃，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -610,7 +801,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['顾客', '企业', '执法机构和街头路人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('会计，汽车驾驶，聆听，一项社交技能（魅惑、话术、恐吓、说服），机械维修，导航，心理学'),
+    signatureSkills: parseSkills('会计，汽车驾驶，聆听，一项社交技能（魅惑、话术、恐吓、说服），机械维修，导航，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，汽车驾驶，聆听，一项社交技能（魅惑、话术、恐吓、说服），机械维修，导航，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -623,7 +815,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-30'),
     recommendedContacts: ['新闻业界', '地方政府', '专业人士（如时装设计师、运动员、商人）', '出版社'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，历史，母语，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查'),
+    signatureSkills: parseSkills('会计，历史，母语，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，历史，母语，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -636,7 +829,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('50-90'),
     recommendedContacts: ['公务员', '政府', '新闻媒体', '企业', '外国政府', '可能有犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('魅惑，历史，恐吓，话术，聆听，母语，说服，心理学'),
+    signatureSkills: parseSkills('魅惑，历史，恐吓，话术，聆听，母语，说服，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('魅惑，历史，恐吓，话术，聆听，母语，说服，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -649,7 +843,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-60'),
     recommendedContacts: ['生意伙伴或部队同事', '地方政府', '建筑师'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('工艺（技术制图），电气维修，图书馆，机械维修，操作重型机械，科学（工程学，物理）'),
+    signatureSkills: parseSkills('工艺（技术制图），电气维修，图书馆，机械维修，操作重型机械，科学（工程学，物理）').requiredSkills,
+    optionalSkillGroups: parseSkills('工艺（技术制图），电气维修，图书馆，机械维修，操作重型机械，科学（工程学，物理）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -662,7 +857,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-70'),
     recommendedContacts: ['歌舞杂技团', '剧院', '电影工作室', '娱乐评论家', '犯罪组织', '电视台（现代）'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术（表演类，如表演、声乐、喜剧等），乔装，两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学'),
+    signatureSkills: parseSkills('艺术（表演类，如表演、声乐、喜剧等），乔装，两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演类，如表演、声乐、喜剧等），乔装，两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -675,7 +871,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('55-80'),
     recommendedContacts: ['大图书馆', '大学', '博物馆', '富有的赞助者', '其他探险家', '出版社', '外国政府官员', '本地土著'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬或游泳，射击，历史，跳跃，博物学，导航，外语，生存'),
+    signatureSkills: parseSkills('攀爬或游泳，射击，历史，跳跃，博物学，导航，外语，生存').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬或游泳，射击，历史，跳跃，博物学，导航，外语，生存').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'classic',
@@ -688,7 +885,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['地方银行', '地方政治家', '各州农业部门'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('工艺（耕作），汽车驾驶（或运货马车），一项社交技能（魅惑、话术、恐吓、说服），机械维修，博物学，操作重型机械，追踪'),
+    signatureSkills: parseSkills('工艺（耕作），汽车驾驶（或运货马车），一项社交技能（魅惑、话术、恐吓、说服），机械维修，博物学，操作重型机械，追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('工艺（耕作），汽车驾驶（或运货马车），一项社交技能（魅惑、话术、恐吓、说服），机械维修，博物学，操作重型机械，追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -701,7 +899,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['联邦司法机构', '执法机构', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('汽车驾驶，格斗（斗殴），射击，法律，说服，潜行，侦查'),
+    signatureSkills: parseSkills('汽车驾驶，格斗（斗殴），射击，法律，说服，潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，格斗（斗殴），射击，法律，说服，潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -714,7 +913,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['本地的赃物贩子', '黑帮', '当然还有警察'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，估价，两项社交技能（魅惑、话术、恐吓、说服），历史，心理学，侦查'),
+    signatureSkills: parseSkills('会计，估价，两项社交技能（魅惑、话术、恐吓、说服），历史，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，估价，两项社交技能（魅惑、话术、恐吓、说服），历史，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -727,7 +927,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['市政工人', '医务人员', '执法机构'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，闪避，汽车驾驶，急救，跳跃，机械维修，操作重型机械，投掷'),
+    signatureSkills: parseSkills('攀爬，闪避，汽车驾驶，急救，跳跃，机械维修，操作重型机械，投掷').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，闪避，汽车驾驶，急救，跳跃，机械维修，操作重型机械，投掷').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -740,7 +941,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-40'),
     recommendedContacts: ['国内外新闻界', '外国政府', '军队'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('历史，外语，母语，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('历史，外语，母语，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('历史，外语，母语，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -753,7 +955,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('40-60'),
     recommendedContacts: ['实验室工作人员', '执法机构', '医护人员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('外语（拉丁文），图书馆，医学，说服，科学（生物学，司法科学，药学），侦查'),
+    signatureSkills: parseSkills('外语（拉丁文），图书馆，医学，说服，科学（生物学，司法科学，药学），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('外语（拉丁文），图书馆，医学，说服，科学（生物学，司法科学，药学），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -766,7 +969,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('8-50'),
     recommendedContacts: ['其他赌徒', '犯罪组织', '街头路人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('会计，艺术（表演），两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学，妙手，侦查'),
+    signatureSkills: parseSkills('会计，艺术（表演），两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学，妙手，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，艺术（表演），两项社交技能（魅惑、话术、恐吓、说服），聆听，心理学，妙手，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -779,7 +983,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('60-95'),
     recommendedContacts: ['犯罪组织', '街头罪犯', '警察', '地方政府', '政治家', '法官', '工会', '律师', '同民族的代表'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('格斗，射击，法律，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查'),
+    signatureSkills: parseSkills('格斗，射击，法律，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('格斗，射击，法律，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -792,7 +997,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['街头罪犯', '警察', '企业', '同民族的代表'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('汽车驾驶，格斗，射击，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('汽车驾驶，格斗，射击，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，格斗，射击，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -805,7 +1011,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['黑帮', '执法机构', '本地企业'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术（表演），乔装，两项社交技能（魅惑、话术、恐吓、说服），格斗，射击，心理学，侦查'),
+    signatureSkills: parseSkills('艺术（表演），乔装，两项社交技能（魅惑、话术、恐吓、说服），格斗，射击，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演），乔装，两项社交技能（魅惑、话术、恐吓、说服），格斗，射击，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'classic',
@@ -818,7 +1025,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('40-90'),
     recommendedContacts: ['上流社会和乡绅', '政治家', '仆人和农民'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），射击（步霰），历史，外语（任一），导航，骑术'),
+    signatureSkills: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），射击（步霰），历史，外语（任一），导航，骑术').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），射击（步霰），历史，外语（任一），导航，骑术').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -831,7 +1039,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-5'),
     recommendedContacts: ['其他游民', '少数友好的铁路员工', '许多城镇里的好心人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），攀爬，跳跃，聆听，锁匠或妙手，导航，潜行'),
+    signatureSkills: parseSkills('艺术/工艺（任一），攀爬，跳跃，聆听，锁匠或妙手，导航，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），攀爬，跳跃，聆听，锁匠或妙手，导航，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -844,7 +1053,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('6-15'),
     recommendedContacts: ['其他医疗人员', '病人', '允许接触医疗记录、药品等等'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋力量 ×2'),
-    signatureSkills: parseSkills('电气维修，一项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），急救，聆听，机械维修，心理学，潜行'),
+    signatureSkills: parseSkills('电气维修，一项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），急救，聆听，机械维修，心理学，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('电气维修，一项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），急救，聆听，机械维修，心理学，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -857,7 +1067,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['新闻界', '政治家', '街头罪犯和执法机构'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('艺术/工艺（艺术或摄影），一项社交技能（魅惑、话术、恐吓、说服），历史，图书馆，母语，心理学'),
+    signatureSkills: parseSkills('艺术/工艺（艺术或摄影），一项社交技能（魅惑、话术、恐吓、说服），历史，图书馆，母语，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（艺术或摄影），一项社交技能（魅惑、话术、恐吓、说服），历史，图书馆，母语，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -870,7 +1081,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('50-80'),
     recommendedContacts: ['法律界', '可能有犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('历史，恐吓，法律，图书馆，聆听，母语，说服，心理学'),
+    signatureSkills: parseSkills('历史，恐吓，法律，图书馆，聆听，母语，说服，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('历史，恐吓，法律，图书馆，聆听，母语，说服，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -883,7 +1095,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-30'),
     recommendedContacts: ['大学', '科学家', '图书馆'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('计算机或图书馆，电气维修，外语，科学（化学和任意两项），侦查'),
+    signatureSkills: parseSkills('计算机或图书馆，电气维修，外语，科学（化学和任意两项），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('计算机或图书馆，电气维修，外语，科学（化学和任意两项），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -896,7 +1109,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['其他工人和行业主管'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('汽车驾驶，电气维修，格斗，急救，机械维修，操作重型机械，投掷'),
+    signatureSkills: parseSkills('汽车驾驶，电气维修，格斗，急救，机械维修，操作重型机械，投掷').requiredSkills,
+    optionalSkillGroups: parseSkills('汽车驾驶，电气维修，格斗，急救，机械维修，操作重型机械，投掷').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -909,7 +1123,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-80'),
     recommendedContacts: ['犯罪组织', '资本家', '检察官和法官'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，法律，图书馆，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('会计，法律，图书馆，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，法律，图书馆，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -922,7 +1137,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-35'),
     recommendedContacts: ['书商', '社会团体', '专业研究人员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，图书馆，外语，母语'),
+    signatureSkills: parseSkills('会计，图书馆，外语，母语').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，图书馆，外语，母语').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -935,7 +1151,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-40'),
     recommendedContacts: ['工会成员', '其他专业技术人员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('工艺（木工、焊接、管道工等），攀爬，汽车驾驶，电气维修，机械维修，操作重型机械'),
+    signatureSkills: parseSkills('工艺（木工、焊接、管道工等），攀爬，汽车驾驶，电气维修，机械维修，操作重型机械').requiredSkills,
+    optionalSkillGroups: parseSkills('工艺（木工、焊接、管道工等），攀爬，汽车驾驶，电气维修，机械维修，操作重型机械').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -948,7 +1165,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-70'),
     recommendedContacts: ['部队', '联邦政府'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('会计，射击，导航，急救，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('会计，射击，导航，急救，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，射击，导航，急救，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -961,7 +1179,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-30'),
     recommendedContacts: ['教会阶层', '外国官员'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），急救，机械维修，医学，博物学，一项社交技能（魅惑、话术、恐吓、说服）'),
+    signatureSkills: parseSkills('艺术/工艺（任一），急救，机械维修，医学，博物学，一项社交技能（魅惑、话术、恐吓、说服）').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），急救，机械维修，医学，博物学，一项社交技能（魅惑、话术、恐吓、说服）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -974,7 +1193,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-60'),
     recommendedContacts: ['其他登山者', '环境保护者', '赞助人', '担保人', '本地救援队或执法机构', '护林员', '运动俱乐部'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，急救，跳跃，聆听，导航，外语，生存（阿尔卑斯或类似），追踪'),
+    signatureSkills: parseSkills('攀爬，急救，跳跃，聆听，导航，外语，生存（阿尔卑斯或类似），追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，急救，跳跃，聆听，导航，外语，生存（阿尔卑斯或类似），追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -987,7 +1207,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-30'),
     recommendedContacts: ['本地的大学和学者', '出版社', '博物馆赞助者'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，估价，考古，历史，图书馆，神秘学，外语，侦查'),
+    signatureSkills: parseSkills('会计，估价，考古，历史，图书馆，神秘学，外语，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，估价，考古，历史，图书馆，神秘学，外语，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1000,7 +1221,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['俱乐部老板', '音乐家协会', '犯罪组织', '街头罪犯'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋意志或敏捷 ×2'),
-    signatureSkills: parseSkills('艺术（器乐），一项社交技能（魅惑、话术、恐吓、说服），聆听，心理学'),
+    signatureSkills: parseSkills('艺术（器乐），一项社交技能（魅惑、话术、恐吓、说服），聆听，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（器乐），一项社交技能（魅惑、话术、恐吓、说服），聆听，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1013,7 +1235,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['护工', '医生', '社区工作人员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('急救，聆听，医学，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（生物学，化学），侦查'),
+    signatureSkills: parseSkills('急救，聆听，医学，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（生物学，化学），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('急救，聆听，医学，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（生物学，化学），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1026,7 +1249,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-65'),
     recommendedContacts: ['图书馆员', '神秘学学会或者同好会', '其他神秘学家'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('人类学，历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），神秘学，外语，科学（天文）'),
+    signatureSkills: parseSkills('人类学，历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），神秘学，外语，科学（天文）').requiredSkills,
+    optionalSkillGroups: parseSkills('人类学，历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），神秘学，外语，科学（天文）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1039,7 +1263,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['其他办公室职员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，语言，法律，图书馆或计算机，聆听，一项社交技能（魅惑、话术、恐吓、说服）'),
+    signatureSkills: parseSkills('会计，语言，法律，图书馆或计算机，聆听，一项社交技能（魅惑、话术、恐吓、说服）').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，语言，法律，图书馆或计算机，聆听，一项社交技能（魅惑、话术、恐吓、说服）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1052,7 +1277,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('35-75'),
     recommendedContacts: ['本地社区', '本地医生', '医院和病人', '能获得各种药品和化学品'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，急救，外语（拉丁文），图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（药学，化学）'),
+    signatureSkills: parseSkills('会计，急救，外语（拉丁文），图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（药学，化学）').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，急救，外语（拉丁文），图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（药学，化学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1065,7 +1291,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['广告业', '本地客户（包括政治团体和报纸）'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('艺术（摄影），一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（化学），潜行，侦查'),
+    signatureSkills: parseSkills('艺术（摄影），一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（化学），潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（摄影），一项社交技能（魅惑、话术、恐吓、说服），心理学，科学（化学），潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1078,7 +1305,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-70'),
     recommendedContacts: ['前部队关系人', '乘务员', '机械师', '机场地勤人员', '嘉年华主办者'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷 ×2'),
-    signatureSkills: parseSkills('电气维修，机械维修，导航，操作重型机械，驾驶（飞行器），科学（天文）'),
+    signatureSkills: parseSkills('电气维修，机械维修，导航，操作重型机械，驾驶（飞行器），科学（天文）').requiredSkills,
+    optionalSkillGroups: parseSkills('电气维修，机械维修，导航，操作重型机械，驾驶（飞行器），科学（天文）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1091,7 +1319,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-50'),
     recommendedContacts: ['执法机构', '街头罪犯', '尸检部门', '司法部门', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('艺术（表演）或乔装，射击，法律，聆听，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查，一项其他技能'),
+    signatureSkills: parseSkills('艺术（表演）或乔装，射击，法律，聆听，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查，一项其他技能').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演）或乔装，射击，法律，聆听，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查，一项其他技能').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1104,7 +1333,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['执法机构', '本地企业与居民', '街头罪犯', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('格斗（斗殴），射击，急救，一项社交技能（魅惑、话术、恐吓、说服），法律，心理学，侦查'),
+    signatureSkills: parseSkills('格斗（斗殴），射击，急救，一项社交技能（魅惑、话术、恐吓、说服），法律，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('格斗（斗殴），射击，急救，一项社交技能（魅惑、话术、恐吓、说服），法律，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1117,7 +1347,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['执法机构', '客户'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('艺术（摄影），乔装，法律，图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查'),
+    signatureSkills: parseSkills('艺术（摄影），乔装，法律，图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（摄影），乔装，法律，图书馆，一项社交技能（魅惑、话术、恐吓、说服），心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1130,7 +1361,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-70'),
     recommendedContacts: ['学者', '大学', '图书馆'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('图书馆，外语，母语，心理学'),
+    signatureSkills: parseSkills('图书馆，外语，母语，心理学，任意四项其他学术、时代或个人特长').requiredSkills,
+    optionalSkillGroups: parseSkills('图书馆，外语，母语，心理学，任意四项其他学术、时代或个人特长').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1143,7 +1375,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-80'),
     recommendedContacts: ['其他精神疾病领域的专家', '医生', '可能有法律人士'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('外语，聆听，医学，说服，精神分析，心理学，科学（生物学，化学）'),
+    signatureSkills: parseSkills('外语，聆听，医学，说服，精神分析，心理学，科学（生物学，化学）').requiredSkills,
+    optionalSkillGroups: parseSkills('外语，聆听，医学，说服，精神分析，心理学，科学（生物学，化学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1156,7 +1389,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-40'),
     recommendedContacts: ['心理学家团体', '病人'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，图书馆，聆听，说服，精神分析，心理学'),
+    signatureSkills: parseSkills('会计，图书馆，聆听，说服，精神分析，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，图书馆，聆听，说服，精神分析，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1169,7 +1403,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['学者和其他学术界人士', '大型企业', '外国政府和个人'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），外语，侦查'),
+    signatureSkills: parseSkills('历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），外语，侦查，任意三项其他学术领域').requiredSkills,
+    optionalSkillGroups: parseSkills('历史，图书馆，一项社交技能（魅惑、话术、恐吓、说服），外语，侦查，任意三项其他学术领域').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1182,7 +1417,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-50'),
     recommendedContacts: ['其他科学家和学术界人士', '大学', '所在企业和前员工'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('任意三项科学专业领域，计算机或图书馆，外语，母语，一项社交技能（魅惑、话术、恐吓、说服），侦查'),
+    signatureSkills: parseSkills('任意三项科学专业领域，计算机或图书馆，外语，母语，一项社交技能（魅惑、话术、恐吓、说服），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('任意三项科学专业领域，计算机或图书馆，外语，母语，一项社交技能（魅惑、话术、恐吓、说服），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1195,7 +1431,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['其他办公室人员', '客户公司的高管'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或外貌 ×2'),
-    signatureSkills: parseSkills('会计，工艺（打字或速记），两项社交技能（魅惑、话术、恐吓、说服），母语，图书馆或计算机，心理学'),
+    signatureSkills: parseSkills('会计，工艺（打字或速记），两项社交技能（魅惑、话术、恐吓、说服），母语，图书馆或计算机，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，工艺（打字或速记），两项社交技能（魅惑、话术、恐吓、说服），母语，图书馆或计算机，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1208,7 +1445,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['军队', '退伍军人协会'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬或游泳，闪避，格斗，射击，潜行，生存'),
+    signatureSkills: parseSkills('攀爬或游泳，闪避，格斗，射击，潜行，生存，下面任选两项：急救、机械维修、外语').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬或游泳，闪避，格斗，射击，潜行，生存，下面任选两项：急救、机械维修、外语').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1221,7 +1459,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-60'),
     recommendedContacts: ['一般只有自己的上线', '可能还有其他的秘密关系人'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('艺术（表演）或乔装，射击，聆听，外语，一项社交技能（魅惑、话术、恐吓、说服），心理学，妙手，潜行'),
+    signatureSkills: parseSkills('艺术（表演）或乔装，射击，聆听，外语，一项社交技能（魅惑、话术、恐吓、说服），心理学，妙手，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演）或乔装，射击，聆听，外语，一项社交技能（魅惑、话术、恐吓、说服），心理学，妙手，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1234,7 +1473,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-10'),
     recommendedContacts: ['学院、其他学生', '实习生也可能有商人等'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('语言（母语或外语），图书馆，聆听'),
+    signatureSkills: parseSkills('语言（母语或外语），图书馆，聆听，三个和学习内容相关的专业技能，任意两项其他个人或时代特长').requiredSkills,
+    optionalSkillGroups: parseSkills('语言（母语或外语），图书馆，聆听，三个和学习内容相关的专业技能，任意两项其他个人或时代特长').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1247,7 +1487,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('30-80'),
     recommendedContacts: ['其他医生', '医护工作者', '病人和前病人'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）'),
+    signatureSkills: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）').requiredSkills,
+    optionalSkillGroups: parseSkills('急救，医学，外语（拉丁文），心理学，科学（生物学，药学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1260,7 +1501,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-20'),
     recommendedContacts: ['顾客', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('会计，艺术/工艺（任一），闪避，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('会计，艺术/工艺（任一），闪避，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，艺术/工艺（任一），闪避，聆听，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1273,7 +1515,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-60'),
     recommendedContacts: ['犯罪组织', '商人'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，估价，工艺（伪造），历史，图书馆，侦查，妙手'),
+    signatureSkills: parseSkills('会计，估价，工艺（伪造），历史，图书馆，侦查，妙手').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，估价，工艺（伪造），历史，图书馆，侦查，妙手').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1286,7 +1529,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-60'),
     recommendedContacts: ['犯罪组织', '海岸卫队', '海关官员'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('射击，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），汽车驾驶或驾驶（飞行器或船），心理学，妙手，侦查'),
+    signatureSkills: parseSkills('射击，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），汽车驾驶或驾驶（飞行器或船），心理学，妙手，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('射击，聆听，导航，一项社交技能（魅惑、话术、恐吓、说服），汽车驾驶或驾驶（飞行器或船），心理学，妙手，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1299,7 +1543,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('3-10'),
     recommendedContacts: ['其他轻罪罪犯', '其他混混', '本地的赃物贩子', '黑帮', '警察'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，一项社交技能（魅惑、话术、恐吓、说服），格斗，射击，跳跃，妙手，潜行，投掷'),
+    signatureSkills: parseSkills('攀爬，一项社交技能（魅惑、话术、恐吓、说服），格斗，射击，跳跃，妙手，潜行，投掷').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，一项社交技能（魅惑、话术、恐吓、说服），格斗，射击，跳跃，妙手，潜行，投掷').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1312,7 +1557,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['林业工人', '野外向导', '环境保护者'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，闪避，格斗（链锯），急救，跳跃，机械维修，博物学或科学（生物学或植物学），投掷'),
+    signatureSkills: parseSkills('攀爬，闪避，格斗（链锯），急救，跳跃，机械维修，博物学或科学（生物学或植物学），投掷').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，闪避，格斗（链锯），急救，跳跃，机械维修，博物学或科学（生物学或植物学），投掷').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1325,7 +1571,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['工会干部', '政治团体'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，科学（地质），跳跃，机械维修，操作重型机械，潜行，侦查'),
+    signatureSkills: parseSkills('攀爬，科学（地质），跳跃，机械维修，操作重型机械，潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，科学（地质），跳跃，机械维修，操作重型机械，潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1338,7 +1585,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-20'),
     recommendedContacts: ['本地居民', '土著', '贸易商'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('射击，急救，聆听，博物学，导航，侦查，生存（任一），追踪'),
+    signatureSkills: parseSkills('射击，急救，聆听，博物学，导航，侦查，生存（任一），追踪').requiredSkills,
+    optionalSkillGroups: parseSkills('射击，急救，聆听，博物学，导航，侦查，生存（任一），追踪').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1351,7 +1599,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['大学', '超心理学刊物'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('人类学，艺术（摄影），历史，图书馆，神秘学，外语，心理学'),
+    signatureSkills: parseSkills('人类学，艺术（摄影），历史，图书馆，神秘学，外语，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('人类学，艺术（摄影），历史，图书馆，神秘学，外语，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1364,7 +1613,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-30'),
     recommendedContacts: ['新闻业', '电影工作室(1920年代)', '外国政府和官方'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('艺术（摄影），攀爬，一项社交技能（魅惑、话术、恐吓、说服），外语，心理学，科学（化学）'),
+    signatureSkills: parseSkills('艺术（摄影），攀爬，一项社交技能（魅惑、话术、恐吓、说服），外语，心理学，科学（化学）').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（摄影），攀爬，一项社交技能（魅惑、话术、恐吓、说服），外语，心理学，科学（化学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1377,7 +1627,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-10'),
     recommendedContacts: ['本地企业和居民'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，急救，历史，机械维修，导航，科学（地质），侦查'),
+    signatureSkills: parseSkills('攀爬，急救，历史，机械维修，导航，科学（地质），侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，急救，历史，机械维修，导航，科学（地质），侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1390,7 +1641,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-50'),
     recommendedContacts: ['街头路人', '警察', '可能有犯罪组织', '私人客户'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），闪避，心理学，妙手，潜行'),
+    signatureSkills: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），闪避，心理学，妙手，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术/工艺（任一），两项社交技能（魅惑、话术、恐吓、说服），闪避，心理学，妙手，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1403,7 +1655,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['新闻媒体', '政治团体与政府', '商界', '执法机构', '街头罪犯', '上流社会'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('艺术（表演），历史，聆听，母语，一项社交技能（魅惑、话术、恐吓、说服），心理学，潜行，侦查'),
+    signatureSkills: parseSkills('艺术（表演），历史，聆听，母语，一项社交技能（魅惑、话术、恐吓、说服），心理学，潜行，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('艺术（表演），历史，聆听，母语，一项社交技能（魅惑、话术、恐吓、说服），心理学，潜行，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1416,7 +1669,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-30'),
     recommendedContacts: ['军队', '退伍军人协会'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('电工或机械维修，格斗，射击，急救，导航，驾驶（船），生存（海上），游泳'),
+    signatureSkills: parseSkills('电工或机械维修，格斗，射击，急救，导航，驾驶（船），生存（海上），游泳').requiredSkills,
+    optionalSkillGroups: parseSkills('电工或机械维修，格斗，射击，急救，导航，驾驶（船），生存（海上），游泳').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1429,7 +1683,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['海岸警卫队', '走私者', '犯罪组织'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('急救，机械维修，博物学，导航，一项社交技能（魅惑、话术、恐吓、说服），驾驶（船），侦查，游泳'),
+    signatureSkills: parseSkills('急救，机械维修，博物学，导航，一项社交技能（魅惑、话术、恐吓、说服），驾驶（船），侦查，游泳').requiredSkills,
+    optionalSkillGroups: parseSkills('急救，机械维修，博物学，导航，一项社交技能（魅惑、话术、恐吓、说服），驾驶（船），侦查，游泳').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1442,7 +1697,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-40'),
     recommendedContacts: ['同行企业', '感兴趣的顾客'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌 ×2'),
-    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，聆听，心理学，潜行或妙手'),
+    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，聆听，心理学，潜行或妙手').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），汽车驾驶，聆听，心理学，潜行或妙手').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1455,7 +1711,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['本地的居民企业', '本地警察', '地方政府', '顾客'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或敏捷 ×2'),
-    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），电气维修，聆听，机械维修，心理学，侦查'),
+    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），电气维修，聆听，机械维修，心理学，侦查').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），电气维修，聆听，机械维修，心理学，侦查').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1468,7 +1725,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('10-50'),
     recommendedContacts: ['电影和电视剧工作室', '爆炸品和烟花生产企业', '演员和导演'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，闪避，电气维修或机械维修，格斗，急救，跳跃，游泳'),
+    signatureSkills: parseSkills('攀爬，闪避，电气维修或机械维修，格斗，急救，跳跃，游泳，下面任选一项：潜水、汽车驾驶、驾驶（任一），骑术').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，闪避，电气维修或机械维修，格斗，急救，跳跃，游泳，下面任选一项：潜水、汽车驾驶、驾驶（任一），骑术').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1481,7 +1739,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-15'),
     recommendedContacts: ['其他部落成员'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋敏捷或力量 ×2'),
-    signatureSkills: parseSkills('攀爬，格斗或投掷，聆听，博物学，神秘学，侦查，游泳，生存（任一）'),
+    signatureSkills: parseSkills('攀爬，格斗或投掷，聆听，博物学，神秘学，侦查，游泳，生存（任一）').requiredSkills,
+    optionalSkillGroups: parseSkills('攀爬，格斗或投掷，聆听，博物学，神秘学，侦查，游泳，生存（任一）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1494,7 +1753,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-40'),
     recommendedContacts: ['没有什么关系'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，汽车驾驶，一项社交技能（魅惑、话术、恐吓、说服），历史，神秘学，心理学，科学（生物学，化学）'),
+    signatureSkills: parseSkills('会计，汽车驾驶，一项社交技能（魅惑、话术、恐吓、说服），历史，神秘学，心理学，科学（生物学，化学）').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，汽车驾驶，一项社交技能（魅惑、话术、恐吓、说服），历史，神秘学，心理学，科学（生物学，化学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1507,7 +1767,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('5-50'),
     recommendedContacts: ['其他劳动领袖', '政治伙伴', '可能有犯罪组织', '在 1920 年代，还有社会主义者、共产主义者、无政府主义者'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），法律，聆听，操作重型机械，心理学'),
+    signatureSkills: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），法律，聆听，操作重型机械，心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，两项社交技能（魅惑、话术、恐吓、说服），格斗（斗殴），法律，聆听，操作重型机械，心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1520,7 +1781,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('0-30'),
     recommendedContacts: ['宗教或兄弟会团体', '新闻媒体'],
     skillFormulas: parseSkillFormula('教育 ×2 ＋外貌或意志 ×2'),
-    signatureSkills: parseSkills('历史，两项社交技能（魅惑、话术、恐吓、说服），心理学，潜行'),
+    signatureSkills: parseSkills('历史，两项社交技能（魅惑、话术、恐吓、说服），心理学，潜行').requiredSkills,
+    optionalSkillGroups: parseSkills('历史，两项社交技能（魅惑、话术、恐吓、说服），心理学，潜行').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1533,7 +1795,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('9-40'),
     recommendedContacts: ['科学家', '环保主义者'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('动物驯养，会计，闪避，急救，博物学，医学，科学（药学，动物学）'),
+    signatureSkills: parseSkills('动物驯养，会计，闪避，急救，博物学，医学，科学（药学，动物学）').requiredSkills,
+    optionalSkillGroups: parseSkills('动物驯养，会计，闪避，急救，博物学，医学，科学（药学，动物学）').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
@@ -1546,7 +1809,8 @@ export const FULL_PROFESSIONS: FullProfession[] = [
     creditRange: parseCreditRange('20-80'),
     recommendedContacts: ['旧时大学同学', '共济会和其他兄弟会组织', '地方和联邦政府', '媒体和销售人员'],
     skillFormulas: parseSkillFormula('教育 ×4'),
-    signatureSkills: parseSkills('会计，外语，法律，两项社交技能（魅惑、话术、恐吓、说服），心理学'),
+    signatureSkills: parseSkills('会计，外语，法律，两项社交技能（魅惑、话术、恐吓、说服），心理学').requiredSkills,
+    optionalSkillGroups: parseSkills('会计，外语，法律，两项社交技能（魅惑、话术、恐吓、说服），心理学').optionalGroups,
     attributeFocus: {},
     hpModifier: 0,
     era: 'any',
