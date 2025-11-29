@@ -44,8 +44,8 @@
 }
 
 .recommendations {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-top: 1rem;
   animation: fadeIn 0.3s ease-out;
@@ -117,9 +117,44 @@
 
 .cardFooter {
   margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.formulaSection {
+  padding: 0.5rem;
+  background: var(--color-bg-secondary, #f9f9f9);
+  border-radius: 6px;
+}
+
+.formulaLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #666);
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.formulaValue {
+  font-size: 0.875rem;
+  color: var(--color-text, #333);
+  font-weight: 500;
+  font-family: monospace;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.skillPointsSection {
+  margin-top: 0.25rem;
 }
 
 /* 移动端优化 */
+@media (max-width: 768px) {
+  .recommendations {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .headerContent {
     flex-direction: column;

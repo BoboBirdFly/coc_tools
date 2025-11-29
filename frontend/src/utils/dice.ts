@@ -25,19 +25,29 @@ export const rollDice = (count: number, sides: number): number => {
 
 /**
  * COC7th 属性生成：3d6 × 5
- * 用于：力量、外貌、体质、敏捷、意志
+ * 用于：力量、外貌、体质、敏捷、意志、幸运
+ * @param minValue 最小值，如果结果低于此值则重投（默认30）
  */
-export const roll3d6x5 = (): number => {
-  const roll = rollDice(3, 6)
-  return roll * 5
+export const roll3d6x5 = (minValue: number = 30): number => {
+  let value: number
+  do {
+    const roll = rollDice(3, 6)
+    value = roll * 5
+  } while (value < minValue)
+  return value
 }
 
 /**
  * COC7th 属性生成：(2d6 + 6) × 5
  * 用于：体型、智力、教育
+ * @param minValue 最小值，如果结果低于此值则重投（默认30）
  */
-export const roll2d6Plus6x5 = (): number => {
-  const roll = rollDice(2, 6) + 6
-  return roll * 5
+export const roll2d6Plus6x5 = (minValue: number = 30): number => {
+  let value: number
+  do {
+    const roll = rollDice(2, 6) + 6
+    value = roll * 5
+  } while (value < minValue)
+  return value
 }
 

@@ -144,6 +144,46 @@
   margin-top: 1.5rem;
 }
 
+/* 模式选择器 */
+.modeSelector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background: var(--color-bg-secondary, #f9f9f9);
+  border-radius: 8px;
+}
+
+.modeLabel {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text, #333);
+}
+
+.modeSelect {
+  flex: 1;
+  max-width: 200px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 6px;
+  background: var(--color-panel, #fff);
+  color: var(--color-text, #333);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modeSelect:hover {
+  border-color: var(--color-primary, #007bff);
+}
+
+.modeSelect:focus {
+  outline: none;
+  border-color: var(--color-primary, #007bff);
+  box-shadow: 0 0 0 2px rgba(139, 46, 92, 0.2);
+}
+
 .initialState {
   text-align: center;
   padding: 3rem 1rem;
@@ -403,6 +443,104 @@
   border-color: var(--color-text-secondary);
 }
 
+/* Larry版分配界面 */
+.larryRandomButton {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.larrySection {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--color-bg-secondary, #f9f9f9);
+  border-radius: 8px;
+}
+
+.larrySectionTitle {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #333);
+}
+
+.larryValues {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.larryValue {
+  padding: 0.75rem 1rem;
+  background: var(--color-panel, #fff);
+  border: 2px solid var(--color-primary, #007bff);
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-primary, #007bff);
+  min-width: 60px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.larryValue.used {
+  background: var(--color-bg-hover, #e5e5e5);
+  border-color: var(--color-text-secondary, #999);
+  color: var(--color-text-secondary, #999);
+  opacity: 0.6;
+}
+
+.larryAttributes {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.larryAttributeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.larryAttributeLabel {
+  min-width: 100px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text, #333);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.larrySelect {
+  flex: 1;
+  max-width: 200px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 6px;
+  background: var(--color-panel, #fff);
+  color: var(--color-text, #333);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.larrySelect:hover:not(:disabled) {
+  border-color: var(--color-primary, #007bff);
+}
+
+.larrySelect:focus {
+  outline: none;
+  border-color: var(--color-primary, #007bff);
+  box-shadow: 0 0 0 2px rgba(139, 46, 92, 0.2);
+}
+
+.larrySelect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* 移动端优化 */
 @media (max-width: 768px) {
   .characterCreation {
@@ -429,6 +567,32 @@
   .pointsSummary {
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .modeSelector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modeSelect {
+    max-width: 100%;
+  }
+
+  .larrySection {
+    padding: 1rem;
+  }
+
+  .larryAttributeRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .larryAttributeLabel {
+    min-width: auto;
+  }
+
+  .larrySelect {
+    max-width: 100%;
   }
 }
 

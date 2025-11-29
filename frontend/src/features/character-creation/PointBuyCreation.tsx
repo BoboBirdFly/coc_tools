@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { AttributeMap, AttributeKey } from '@schema/character'
 import { ATTRIBUTE_NAMES } from '@data/i18n'
 import { ATTRIBUTE_RULES } from '@data/constants'
@@ -8,6 +8,7 @@ import styles from './CharacterCreation.module.css'
 type PointBuyCreationProps = {
   onComplete: (attributes: AttributeMap) => void
   onBack: () => void
+  initialAttributes?: AttributeMap // 初始属性（用于恢复已保存的数据）
 }
 
 const TOTAL_POINTS = 480
@@ -16,9 +17,12 @@ const TOTAL_POINTS = 480
  * 购点车卡组件
  * 手动分配 480 点属性
  */
-const PointBuyCreation = ({ onComplete, onBack }: PointBuyCreationProps) => {
-  const [attributes, setAttributes] = useState<AttributeMap>(() => {
-    // 初始分配：平均分配 480 点（每个属性 60 点）
+const PointBuyCreation = ({ onComplete, onBack, initialAttributes }: PointBuyCreationProps) => {
+  // 如果有初始属性，使用初始属性；否则平均分配 480 点
+  const getInitialAttributes = (): AttributeMap => {
+    if (initialAttributes) {
+      return initialAttributes
+    }
     const initialValue = 60
     return {
       str: initialValue,
@@ -30,7 +34,16 @@ const PointBuyCreation = ({ onComplete, onBack }: PointBuyCreationProps) => {
       app: initialValue,
       edu: initialValue,
     }
-  })
+  }
+
+  const [attributes, setAttributes] = useState<AttributeMap>(getInitialAttributes)
+
+  // 当初始属性变化时，更新本地状态
+  useEffect(() => {
+    if (initialAttributes) {
+      setAttributes(initialAttributes)
+    }
+  }, [initialAttributes])
 
   // 计算已用点数
   const usedPoints = useMemo(() => {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { AttributeMap, SkillAllocation, SkillBudget, Profession } from '@schema/character'
 import { SKILL_CATEGORY_NAMES } from '@data/i18n'
 import {
@@ -19,6 +19,8 @@ type SkillAllocationProps = {
   skillBudgets: SkillBudget
   onComplete: (allocation: SkillAllocation) => void
   onBack: () => void
+  onChange?: (allocation: SkillAllocation) => void // 实时更新回调
+  initialAllocation?: SkillAllocation // 初始技能分配
 }
 
 type AllocationType = 'occupation' | 'personal'
@@ -33,17 +35,33 @@ const SkillAllocationComponent = ({
   skillBudgets,
   onComplete,
   onBack,
+  onChange,
+  initialAllocation = {},
 }: SkillAllocationProps) => {
   const [allocationType, setAllocationType] = useState<AllocationType>('occupation')
   // 分开跟踪职业点和兴趣点的分配（用于信用评级等两边都能加的技能）
-  const [occAllocation, setOccAllocation] = useState<SkillAllocation>({})
+  // 从初始分配中恢复（简化处理：将初始分配全部作为职业分配）
+  const [occAllocation, setOccAllocation] = useState<SkillAllocation>(() => {
+    // 如果有初始分配，全部作为职业分配（简化处理）
+    return { ...initialAllocation }
+  })
   const [perAllocation, setPerAllocation] = useState<SkillAllocation>({})
 
   // 合并后的分配（用于显示和最终提交）
-  const allocation: SkillAllocation = {}
-  for (const skillId of new Set([...Object.keys(occAllocation), ...Object.keys(perAllocation)])) {
-    allocation[skillId] = (occAllocation[skillId] || 0) + (perAllocation[skillId] || 0)
-  }
+  const allocation: SkillAllocation = useMemo(() => {
+    const merged: SkillAllocation = {}
+    for (const skillId of new Set([...Object.keys(occAllocation), ...Object.keys(perAllocation)])) {
+      merged[skillId] = (occAllocation[skillId] || 0) + (perAllocation[skillId] || 0)
+    }
+    return merged
+  }, [occAllocation, perAllocation])
+
+  // 实时通知父组件分配变化
+  useEffect(() => {
+    if (onChange) {
+      onChange(allocation)
+    }
+  }, [allocation, onChange])
 
   // 获取技能列表
   const occupationSkills = useMemo(() => {

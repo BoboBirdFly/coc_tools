@@ -14,7 +14,7 @@ type BuilderState = {
 
 // Reducer 动作类型（用户操作 -> 状态变更）
 type BuilderAction =
-  | { type: 'hydrate'; payload: BaseCharacterInput } // 从 localStorage 恢复
+  | { type: 'load-character'; payload: BaseCharacterInput } // 加载角色（从 localStorage 恢复或从列表选择）
   | { type: 'update'; payload: Partial<BaseCharacterInput> } // 更新表单字段
   | {
       type: 'update-attribute'
@@ -63,8 +63,8 @@ const makeInitialState = (): BuilderState => {
  */
 const reducer = (state: BuilderState, action: BuilderAction): BuilderState => {
   switch (action.type) {
-    case 'hydrate': {
-      // 从 localStorage 恢复完整状态
+    case 'load-character': {
+      // 加载角色（从 localStorage 恢复或从列表选择）
       const nextCalculated = buildCalculated(action.payload)
       return { form: action.payload, calculated: nextCalculated }
     }
@@ -110,6 +110,8 @@ export const useCharacterBuilder = () => {
         key: keyof BaseCharacterInput['attributes'],
         value: number,
       ) => dispatch({ type: 'update-attribute', payload: { key, value } }),
+      loadCharacter: (character: BaseCharacterInput) =>
+        dispatch({ type: 'load-character', payload: character }),
     }),
     [],
   )

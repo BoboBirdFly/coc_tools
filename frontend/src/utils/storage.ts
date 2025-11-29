@@ -38,3 +38,19 @@ export const setLocalStorageItem = <T>(key: string, value: T) => {
   }
 }
 
+/**
+ * 从 localStorage 删除数据
+ * @param key 存储键名
+ */
+export const removeLocalStorageItem = (key: string) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // 忽略删除异常
+  }
+}
+

@@ -62,8 +62,8 @@ export interface Profession {
 }
 
 export interface BaseCharacterInput {
-  name: string
   professionId: string
+  name: string
   attributes: AttributeMap
   skills?: SkillAllocation // 技能分配（可选，车卡时分配）
   background?: CharacterBackground // 背景信息
@@ -102,5 +102,12 @@ export interface CalculatedCharacter {
   thresholds: AttributeThresholds
   skillBudgets: SkillBudget
   signatureSkills: SkillDefinition[]
+}
+
+// 完整的角色数据（用于存储和列表展示）
+export interface Character extends BaseCharacterInput {
+  id: string // 唯一标识符
+  createdAt: number // 创建时间戳
+  updatedAt: number // 更新时间戳
 }
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { AttributeMap } from '@schema/character'
 import type { FullProfession } from '@data/professions-full'
+import { ATTRIBUTE_NAMES } from '@data/i18n'
 import { Card, StatCard, Button } from './ui'
 import styles from './ProfessionRecommendations.module.css'
 
@@ -15,6 +16,23 @@ const calculateProfessionSkillPoints = (
     const attributeValue = attributes[part.attribute]
     return sum + attributeValue * part.multiplier
   }, 0)
+}
+
+/**
+ * 格式化技能公式为可读字符串，包含属性值
+ * 格式：教育(60) × 2 + 力量(80) × 2 = 280
+ */
+const formatSkillFormulaWithValues = (
+  attributes: AttributeMap,
+  profession: FullProfession,
+): string => {
+  const parts = profession.skillFormulas.map((part) => {
+    const value = attributes[part.attribute]
+    return `${ATTRIBUTE_NAMES[part.attribute]}(${value}) × ${part.multiplier}`
+  })
+
+  const total = calculateProfessionSkillPoints(attributes, profession)
+  return `${parts.join(' + ')} = ${total}`
 }
 
 type ProfessionRecommendationsProps = {
@@ -46,10 +64,54 @@ const ProfessionRecommendations = ({
       }
     })
 
-    // 按技能点数降序排序，取前5个
-    return professionScores
-      .sort((a, b) => b.skillPoints - a.skillPoints)
-      .slice(0, 5)
+    // 按技能点数降序排序
+    const sorted = professionScores.sort((a, b) => b.skillPoints - a.skillPoints)
+
+    if (sorted.length === 0) {
+      return []
+    }
+
+    // 获取最高职业点数
+    const maxSkillPoints = sorted[0].skillPoints
+
+    // 先选取最大职业点数的所有职业
+    const maxScoreProfessions = sorted.filter((item) => item.skillPoints === maxSkillPoints)
+
+    // 如果最大职业点数的职业已经达到或超过6个，返回所有最大职业点数的职业（不限制数量）
+    if (maxScoreProfessions.length >= 6) {
+      return maxScoreProfessions
+    }
+
+    // 如果最大职业点数的职业少于6个，继续按顺序添加，直到够6个
+    // 按职业点数分组，确保相同点数的职业一起添加
+    const result: typeof sorted = [...maxScoreProfessions]
+    let currentIndex = maxScoreProfessions.length
+
+    while (result.length < 6 && currentIndex < sorted.length) {
+      const currentScore = sorted[currentIndex].skillPoints
+
+      // 找到所有具有相同职业点数的职业
+      const sameScoreGroup: typeof sorted = []
+      for (let i = currentIndex; i < sorted.length; i++) {
+        if (sorted[i].skillPoints === currentScore) {
+          sameScoreGroup.push(sorted[i])
+        } else {
+          break
+        }
+      }
+
+      // 添加整个组
+      result.push(...sameScoreGroup)
+      currentIndex += sameScoreGroup.length
+
+      // 如果已经够6个，停止
+      if (result.length >= 6) {
+        break
+      }
+    }
+
+    // 如果超过6个，只取前6个
+    return result.slice(0, 6)
   }, [attributes, professions])
 
   if (recommendedProfessions.length === 0) {
@@ -97,11 +159,19 @@ const ProfessionRecommendations = ({
                 </div>
               </div>
               <div className={styles.cardFooter}>
-                <StatCard
-                  label="职业技能点"
-                  value={item.skillPoints}
-                  variant="highlight"
-                />
+                <div className={styles.formulaSection}>
+                  <div className={styles.formulaLabel}>计算公式：</div>
+                  <div className={styles.formulaValue}>
+                    {formatSkillFormulaWithValues(attributes, item.profession)}
+                  </div>
+                </div>
+                <div className={styles.skillPointsSection}>
+                  <StatCard
+                    label="职业技能点"
+                    value={item.skillPoints}
+                    variant="highlight"
+                  />
+                </div>
               </div>
             </Card>
           ))}

@@ -27,6 +27,8 @@ export const ATTRIBUTE_RULES = {
 // localStorage 存储键名
 export const STORAGE_KEYS = {
   characterBuilder: 'coc-character-builder',
+  characterList: 'coc-character-list',
+  creationTempData: 'coc-creation-temp-data', // 车卡过程中的临时数据（如larry版状态）
 } as const
 
 // 导出文件配置
