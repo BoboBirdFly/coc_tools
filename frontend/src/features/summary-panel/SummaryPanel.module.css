@@ -153,6 +153,73 @@
   overflow-y: auto;
 }
 
+/* 技能点显示和选择 */
+.skillPointsHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.skillPointCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.skillPointCheckbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.checkboxLabel {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* 技能表分类 tab */
+.skillViewTabs {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.1));
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.skillViewTab {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.skillViewTab:hover {
+  color: var(--color-text);
+  background: var(--color-bg-tertiary, rgba(0, 0, 0, 0.05));
+}
+
+.skillViewTabActive {
+  background: var(--color-primary);
+  color: white;
+}
+
+.skillViewTabActive:hover {
+  background: var(--color-primary-hover, var(--color-primary));
+  color: white;
+}
+
 .skillCategory {
   display: flex;
   flex-direction: column;
@@ -187,6 +254,30 @@
   transition: all 0.2s;
   width: 100%;
   box-sizing: border-box;
+}
+
+.skillControls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.controlButton {
+  min-width: 2.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.allocatedPoints {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 2rem;
+  text-align: center;
 }
 
 .skillRow:hover {

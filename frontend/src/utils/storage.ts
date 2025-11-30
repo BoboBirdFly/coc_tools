@@ -54,3 +54,21 @@ export const removeLocalStorageItem = (key: string) => {
   }
 }
 
+/**
+ * 清除所有应用相关的 localStorage 数据
+ * @param keys 要清除的存储键名数组
+ */
+export const clearAllStorage = (keys: string[]) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    keys.forEach((key) => {
+      window.localStorage.removeItem(key)
+    })
+  } catch {
+    // 忽略清除异常
+  }
+}
+

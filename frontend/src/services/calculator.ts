@@ -1,4 +1,4 @@
-import { getSkillById } from '@data/skills'
+import { getSkillById, getChildSkills } from '@data/skills'
 import type {
   AttributeMap,
   AttributeThresholds,
@@ -129,13 +129,60 @@ const buildAttributeThresholds = (attributes: AttributeMap): AttributeThresholds
 
 /**
  * 解析职业职业技能（从技能 ID 映射到完整定义）
+ * 包含必需技能和用户选择的可选技能，以及它们的子技能
  */
-const resolveSignatureSkills = (profession?: Profession): SkillDefinition[] =>
-  profession
-    ? profession.signatureSkills
-      .map((skillId) => getSkillById(skillId))
-      .filter((skill): skill is SkillDefinition => Boolean(skill))
-    : []
+const resolveSignatureSkills = (
+  profession?: Profession,
+  optionalSkills?: Record<number, string[]>
+): SkillDefinition[] => {
+  if (!profession) return []
+
+  const skillSet = new Set<string>()
+  const skills: SkillDefinition[] = []
+
+  // 添加必需职业技能
+  for (const skillId of profession.signatureSkills) {
+    const skill = getSkillById(skillId)
+    if (skill && !skillSet.has(skillId)) {
+      skills.push(skill)
+      skillSet.add(skillId)
+
+      // 如果这个技能有子技能，也添加所有子技能
+      const childSkills = getChildSkills(skillId)
+      for (const childSkill of childSkills) {
+        if (!skillSet.has(childSkill.id)) {
+          skills.push(childSkill)
+          skillSet.add(childSkill.id)
+        }
+      }
+    }
+  }
+
+  // 添加用户选择的可选技能
+  if (profession.optionalSkillGroups && optionalSkills) {
+    profession.optionalSkillGroups.forEach((_group, index) => {
+      const selected = optionalSkills[index] || []
+      for (const skillId of selected) {
+        const skill = getSkillById(skillId)
+        if (skill && !skillSet.has(skillId)) {
+          skills.push(skill)
+          skillSet.add(skillId)
+
+          // 如果这个技能有子技能，也添加所有子技能
+          const childSkills = getChildSkills(skillId)
+          for (const childSkill of childSkills) {
+            if (!skillSet.has(childSkill.id)) {
+              skills.push(childSkill)
+              skillSet.add(childSkill.id)
+            }
+          }
+        }
+      }
+    })
+  }
+
+  return skills
+}
 
 /**
  * 主计算函数：汇总角色所有计算流程
@@ -153,7 +200,7 @@ export const calculateCharacter = (
   const secondaryStats = deriveSecondaryStats(attributesWithFocus, profession)
   const skillBudgets = calculateSkillBudgets(attributesWithFocus, profession)
   const thresholds = buildAttributeThresholds(attributesWithFocus)
-  const signatureSkills = resolveSignatureSkills(profession)
+  const signatureSkills = resolveSignatureSkills(profession, form.optionalSkills)
 
   return {
     name: form.name,

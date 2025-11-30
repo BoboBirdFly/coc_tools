@@ -90,6 +90,7 @@ export interface BaseCharacterInput {
   name: string
   attributes: AttributeMap
   skills?: SkillAllocation // 技能分配（可选，车卡时分配）
+  optionalSkills?: Record<number, string[]> // 可选技能选择（职业的可选技能组选择）
   background?: CharacterBackground // 背景信息
   assets?: CharacterAssets // 资产信息
 }

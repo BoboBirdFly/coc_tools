@@ -42,8 +42,20 @@ const PointBuyCreation = ({ onComplete, onBack, initialAttributes, initialLuck }
 
   const [attributes, setAttributes] = useState<AttributeMap>(getInitialAttributes)
 
+  // 计算初始总点数：如果有初始属性，确保总点数至少等于已用点数
+  const getInitialTotalPoints = (): number => {
+    if (initialAttributes) {
+      const usedPoints = Object.values(initialAttributes).reduce((sum, value) => sum + value, 0)
+      // 如果已用点数超过默认值，使用已用点数（但不超过最大值）
+      if (usedPoints > DEFAULT_TOTAL_POINTS) {
+        return Math.min(usedPoints, MAX_TOTAL_POINTS)
+      }
+    }
+    return DEFAULT_TOTAL_POINTS
+  }
+
   // 总点数（可调整）
-  const [totalPoints, setTotalPoints] = useState<number>(DEFAULT_TOTAL_POINTS)
+  const [totalPoints, setTotalPoints] = useState<number>(getInitialTotalPoints)
 
   // 幸运值（不计入总点数）
   const [luck, setLuck] = useState<number | null>(initialLuck || null)
@@ -61,6 +73,15 @@ const PointBuyCreation = ({ onComplete, onBack, initialAttributes, initialLuck }
   useEffect(() => {
     if (initialAttributes) {
       setAttributes(initialAttributes)
+      // 同时更新总点数，确保至少等于已用点数
+      const usedPoints = Object.values(initialAttributes).reduce((sum, value) => sum + value, 0)
+      setTotalPoints((prevTotalPoints) => {
+        // 如果已用点数超过当前总点数，更新总点数（但不超过最大值）
+        if (usedPoints > prevTotalPoints) {
+          return Math.min(usedPoints, MAX_TOTAL_POINTS)
+        }
+        return prevTotalPoints
+      })
     }
   }, [initialAttributes])
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import type { AttributeMap, SkillAllocation, SkillBudget, Profession } from '@schema/character'
 import { SKILL_CATEGORY_NAMES, ATTRIBUTE_NAMES } from '@data/i18n'
 import { evaluateSkillFormulas } from '@services/calculator'
@@ -50,6 +50,7 @@ const SkillAllocationComponent = ({
   // 用户选择的可选技能（每个可选技能组选择的技能ID列表）
   const [selectedOptionalSkills, setSelectedOptionalSkills] = useState<Record<number, string[]>>(() => {
     // 从初始分配中恢复已选择的可选技能
+    console.log('[SkillAllocation] 初始化 selectedOptionalSkills, initialAllocation:', initialAllocation)
     const selected: Record<number, string[]> = {}
     if (profession.optionalSkillGroups) {
       profession.optionalSkillGroups.forEach((group, index) => {
@@ -58,21 +59,146 @@ const SkillAllocationComponent = ({
           const selectedInGroup = group.skillIds.filter(skillId => initialAllocation[skillId] !== undefined)
           if (selectedInGroup.length > 0) {
             selected[index] = selectedInGroup
+            console.log(`[SkillAllocation] 可选技能组 ${index} 恢复选择:`, selectedInGroup)
           }
         }
       })
     }
+    console.log('[SkillAllocation] selectedOptionalSkills 初始化结果:', selected)
     return selected
   })
 
   const [allocationType, setAllocationType] = useState<AllocationType>('occupation')
+
+  // 计算最终的职业技能列表（用于恢复时判断技能类型）
+  // 在初始化函数中直接计算，避免循环依赖
+  const getFinalSignatureSkillsForRestore = (): string[] => {
+    console.log('[SkillAllocation] getFinalSignatureSkillsForRestore 开始计算')
+    console.log('[SkillAllocation] profession.signatureSkills:', profession.signatureSkills)
+    console.log('[SkillAllocation] initialAllocation:', initialAllocation)
+
+    const skillSet = new Set<string>()
+    const skills: string[] = []
+
+    // 添加职业技能
+    for (const skillId of profession.signatureSkills) {
+      if (!skillSet.has(skillId)) {
+        skills.push(skillId)
+        skillSet.add(skillId)
+
+        // 如果这个技能有子技能，也添加所有子技能
+        const childSkills = getChildSkills(skillId)
+        if (childSkills.length > 0) {
+          console.log(`[SkillAllocation] 技能 ${skillId} 的子技能:`, childSkills.map(s => s.id))
+        }
+        for (const childSkill of childSkills) {
+          if (!skillSet.has(childSkill.id)) {
+            skills.push(childSkill.id)
+            skillSet.add(childSkill.id)
+          }
+        }
+      }
+    }
+
+    // 添加用户选择的可选技能（从初始分配中推断）
+    if (profession.optionalSkillGroups) {
+      profession.optionalSkillGroups.forEach((group, index) => {
+        if (group.type === 'specific' && group.skillIds) {
+          // 检查哪些可选技能在初始分配中有点数
+          const selectedInGroup = group.skillIds.filter(skillId => initialAllocation[skillId] !== undefined && initialAllocation[skillId] > 0)
+          console.log(`[SkillAllocation] 可选技能组 ${index} 的候选技能:`, group.skillIds)
+          console.log(`[SkillAllocation] 可选技能组 ${index} 在初始分配中有值的技能:`, selectedInGroup)
+          if (selectedInGroup.length > 0) {
+            for (const skillId of selectedInGroup) {
+              if (!skillSet.has(skillId)) {
+                skills.push(skillId)
+                skillSet.add(skillId)
+                console.log(`[SkillAllocation] 添加可选技能 ${skillId} 到最终职业技能列表`)
+
+                // 如果这个技能有子技能，也添加所有子技能
+                const childSkills = getChildSkills(skillId)
+                for (const childSkill of childSkills) {
+                  if (!skillSet.has(childSkill.id)) {
+                    skills.push(childSkill.id)
+                    skillSet.add(childSkill.id)
+                  }
+                }
+              }
+            }
+          }
+        }
+      })
+    }
+
+    console.log('[SkillAllocation] getFinalSignatureSkillsForRestore 最终结果:', skills)
+    return skills
+  }
+
+  // 智能恢复分配算法：计算如何将 initialAllocation 分配到职业点和兴趣点
+  // 策略：1) 职业技能必须用职业点 2) 非职业技能优先用剩余职业点，剩余部分用兴趣点
+  // 使用 useMemo 预先计算，避免每次渲染都执行
+  const restoredAllocations = useMemo(() => {
+    console.log('[SkillAllocation] 开始智能恢复分配')
+    const finalSignatureSkills = getFinalSignatureSkillsForRestore()
+    const occ: SkillAllocation = {}
+    const per: SkillAllocation = {}
+
+    // 第一步：所有职业技能必须用职业点分配
+    let usedOccPoints = 0
+    for (const [skillId, points] of Object.entries(initialAllocation)) {
+      if (points <= 0) continue
+      const isSignatureSkill = finalSignatureSkills.includes(skillId)
+
+      if (isSignatureSkill) {
+        occ[skillId] = points
+        usedOccPoints += points
+        console.log(`[SkillAllocation] 职业技能 ${skillId} 用职业点分配: ${points}`)
+      }
+    }
+
+    // 计算剩余职业点
+    let remainingOccPoints = skillBudgets.occupation - usedOccPoints
+    console.log(`[SkillAllocation] 职业技能已用: ${usedOccPoints}, 剩余职业点: ${remainingOccPoints}`)
+
+    // 第二步：非职业技能优先用剩余职业点分配，剩余部分用兴趣点
+    for (const [skillId, points] of Object.entries(initialAllocation)) {
+      if (points <= 0) continue
+      const isSignatureSkill = finalSignatureSkills.includes(skillId)
+
+      // 跳过已经分配的职业技能
+      if (isSignatureSkill) continue
+
+      // 尽量用剩余职业点分配
+      if (remainingOccPoints > 0) {
+        const canUseOccPoints = Math.min(points, remainingOccPoints)
+        occ[skillId] = canUseOccPoints
+        remainingOccPoints -= canUseOccPoints
+        usedOccPoints += canUseOccPoints
+
+        // 剩余部分用兴趣点
+        const remainingPoints = points - canUseOccPoints
+        if (remainingPoints > 0) {
+          per[skillId] = remainingPoints
+          console.log(`[SkillAllocation] 非职业技能 ${skillId}: 职业点${canUseOccPoints}, 兴趣点${remainingPoints} (总计${points})`)
+        } else {
+          console.log(`[SkillAllocation] 非职业技能 ${skillId} 全部用职业点分配: ${canUseOccPoints}`)
+        }
+      } else {
+        // 没有剩余职业点，全部用兴趣点
+        per[skillId] = points
+        console.log(`[SkillAllocation] 非职业技能 ${skillId} 全部用兴趣点分配: ${points}`)
+      }
+    }
+
+    console.log('[SkillAllocation] 恢复结果 - occAllocation:', occ)
+    console.log('[SkillAllocation] 恢复结果 - perAllocation:', per)
+    return { occ, per }
+  }, [initialAllocation, skillBudgets.occupation, profession]) // 依赖 initialAllocation、职业点预算和职业
+
   // 分开跟踪职业点和兴趣点的分配（用于信用评级等两边都能加的技能）
-  // 从初始分配中恢复（简化处理：将初始分配全部作为职业分配）
-  const [occAllocation, setOccAllocation] = useState<SkillAllocation>(() => {
-    // 如果有初始分配，全部作为职业分配（简化处理）
-    return { ...initialAllocation }
-  })
-  const [perAllocation, setPerAllocation] = useState<SkillAllocation>({})
+  // 从初始分配中恢复：使用智能分配策略
+  const [occAllocation, setOccAllocation] = useState<SkillAllocation>(restoredAllocations.occ)
+  const [perAllocation, setPerAllocation] = useState<SkillAllocation>(restoredAllocations.per)
 
   // 计算最终的职业技能列表（包含必需技能和用户选择的可选技能）
   // 如果职业技能包含父技能（如"射击"），则自动包含所有子技能（如"射击（手枪）"、"射击（步枪/散弹枪）"）
@@ -134,15 +260,47 @@ const SkillAllocationComponent = ({
     for (const skillId of new Set([...Object.keys(occAllocation), ...Object.keys(perAllocation)])) {
       merged[skillId] = (occAllocation[skillId] || 0) + (perAllocation[skillId] || 0)
     }
+    console.log('[SkillAllocation] 合并后的 allocation:', merged)
+    console.log('[SkillAllocation] occAllocation:', occAllocation)
+    console.log('[SkillAllocation] perAllocation:', perAllocation)
     return merged
   }, [occAllocation, perAllocation])
 
   // 实时通知父组件分配变化
+  // 使用 useRef 跟踪上一次的 allocation，避免在值未改变时触发更新
+  const prevAllocationRef = useRef<SkillAllocation>({})
   useEffect(() => {
     if (onChange) {
-      onChange(allocation)
+      // 深度比较 allocation 是否真正改变
+      const prev = prevAllocationRef.current
+      const current = allocation
+
+      // 比较键的数量
+      const prevKeys = Object.keys(prev).sort()
+      const currentKeys = Object.keys(current).sort()
+
+      if (prevKeys.length !== currentKeys.length) {
+        prevAllocationRef.current = { ...current }
+        onChange(current)
+        return
+      }
+
+      // 比较每个键的值
+      let hasChanged = false
+      for (const key of currentKeys) {
+        if (prev[key] !== current[key]) {
+          hasChanged = true
+          break
+        }
+      }
+
+      if (hasChanged) {
+        prevAllocationRef.current = { ...current }
+        onChange(current)
+      }
     }
-  }, [allocation, onChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allocation]) // 移除 onChange 依赖，因为它应该是稳定的引用
 
   // 获取技能列表（使用最终确定的职业技能）
   const occupationSkills = useMemo(() => {
@@ -154,11 +312,19 @@ const SkillAllocationComponent = ({
   // 注意：应该分别使用 occAllocation 和 perAllocation，而不是合并后的 allocation
   // 因为一个技能可能同时有职业技能点和兴趣技能点（如信用评级）
   const usedOccupation = useMemo(
-    () => calculateUsedSkillPoints(occAllocation, 'occupation', finalProfession),
+    () => {
+      const used = calculateUsedSkillPoints(occAllocation, 'occupation', finalProfession)
+      console.log('[SkillAllocation] usedOccupation 计算:', used, 'occAllocation:', occAllocation)
+      return used
+    },
     [occAllocation, finalProfession],
   )
   const usedPersonal = useMemo(
-    () => calculateUsedSkillPoints(perAllocation, 'personal', finalProfession),
+    () => {
+      const used = calculateUsedSkillPoints(perAllocation, 'personal', finalProfession)
+      console.log('[SkillAllocation] usedPersonal 计算:', used, 'perAllocation:', perAllocation)
+      return used
+    },
     [perAllocation, finalProfession],
   )
 
@@ -693,4 +859,5 @@ const SkillAllocationComponent = ({
 }
 
 export default SkillAllocationComponent
+
 

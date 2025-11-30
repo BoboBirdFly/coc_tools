@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { AttributeMap, SkillAllocation, Character, BaseCharacterInput } from '@schema/character'
+import type { AttributeMap, Character, BaseCharacterInput } from '@schema/character'
 import CharacterSheetPage from '@pages/CharacterSheetPage'
 import CharacterListPage from '@pages/CharacterListPage'
 import CharacterCreation from '@features/character-creation/CharacterCreation'
@@ -11,8 +11,8 @@ import {
   updateCharacter,
   hasCharacterList,
 } from '@services/characterList'
-import { setLocalStorageItem } from '@utils/storage'
-import { Button } from '@components/ui'
+import { setLocalStorageItem, clearAllStorage } from '@utils/storage'
+import { Button, ConfirmDialog } from '@components/ui'
 import './App.css'
 
 type Page = 'list' | 'sheet' | 'creation' | 'skills'
@@ -21,6 +21,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>('list')
   const [isInitialized, setIsInitialized] = useState(false)
   const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
+  const [showClearCacheDialog, setShowClearCacheDialog] = useState(false)
   const characterBuilder = useCharacterBuilder()
   const { actions, form } = characterBuilder
 
@@ -57,27 +58,22 @@ function App() {
     setCurrentPage('creation')
   }
 
-  // 车卡完成，保存到列表并跳转到角色卡页面
-  const handleCreationComplete = (
-    attributes: AttributeMap,
-    professionId: string,
-    skills?: SkillAllocation,
-  ) => {
+  // 属性生成完成，保存属性并跳转到角色卡页面
+  const handleCreationComplete = (attributes: AttributeMap) => {
+  // 保存属性到 characterBuilder
     const characterData: BaseCharacterInput = {
       ...form,
       attributes,
-      professionId,
-      skills: skills || {},
+      // 如果没有名称，使用默认名称
+      name: form.name || `角色 ${new Date().toLocaleString('zh-CN')}`,
     }
 
-    // 如果没有名称，使用默认名称
-    if (!characterData.name) {
-      characterData.name = `角色 ${new Date().toLocaleString('zh-CN')}`
-    }
-
+    // 保存到角色列表
     const savedCharacter = saveCharacter(characterData)
     setCurrentCharacterId(savedCharacter.id)
     actions.updateForm(characterData)
+
+    // 跳转到角色卡页面，在主页面完成职业选择和技能分配
     setCurrentPage('sheet')
   }
 
@@ -108,6 +104,30 @@ function App() {
     setCurrentPage('list')
   }
 
+  // 处理清除所有缓存
+  const handleClearCache = () => {
+    // 获取所有存储键
+    const allStorageKeys = Object.values(STORAGE_KEYS)
+    // 清除所有缓存
+    clearAllStorage(allStorageKeys)
+
+    // 重置表单和状态
+    actions.updateForm({
+      name: '',
+      professionId: '',
+      attributes: {} as AttributeMap,
+      skills: {},
+    })
+    setCurrentCharacterId(null)
+    setShowClearCacheDialog(false)
+
+    // 跳转到列表页面（如果没有角色列表，会自动显示空状态）
+    setCurrentPage('list')
+
+    // 刷新页面以完全重置状态
+    window.location.reload()
+  }
+
   // 等待初始化完成
   if (!isInitialized) {
     return <div className="app-shell">加载中...</div>
@@ -122,6 +142,16 @@ function App() {
             <p className="app-description">纯前端离线工具 · 即开即用</p>
           </div>
           <div className="app-header-actions">
+            {/* 设置按钮（在所有页面都显示） */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClearCacheDialog(true)}
+              title="清除所有缓存"
+              style={{ fontSize: '20px', padding: '6px 10px', minWidth: 'auto' }}
+            >
+              ⚙️
+            </Button>
             {currentPage === 'list' && (
               <Button
                 variant="primary"
@@ -185,6 +215,32 @@ function App() {
         )}
         {currentPage === 'skills' && <SkillsReferencePage />}
       </main>
+
+      {/* 清除缓存确认对话框 */}
+      <ConfirmDialog
+        isOpen={showClearCacheDialog}
+        onClose={() => setShowClearCacheDialog(false)}
+        onConfirm={handleClearCache}
+        title="清除所有缓存"
+        message={
+          <div>
+            <p style={{ marginBottom: '10px' }}>
+              确定要清除所有缓存数据吗？此操作将删除：
+            </p>
+            <ul style={{ marginLeft: '20px', marginBottom: '10px' }}>
+              <li>所有已保存的角色</li>
+              <li>当前编辑的角色数据</li>
+              <li>车卡过程中的临时数据</li>
+            </ul>
+            <p style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+              此操作不可恢复，请谨慎操作！
+            </p>
+          </div>
+        }
+        confirmText="确定清除"
+        cancelText="取消"
+        confirmVariant="primary"
+      />
     </div>
   )
 }

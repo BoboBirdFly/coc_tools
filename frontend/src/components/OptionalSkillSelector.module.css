@@ -1,0 +1,104 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+}
+
+.description {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.group {
+  padding: 1.5rem;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.groupTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.completeBadge {
+  font-size: 0.875rem;
+  color: var(--color-success, #22c55e);
+  font-weight: normal;
+}
+
+.skillsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.skillCard {
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.skillCard:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.skillCard.selected {
+  border-color: var(--color-primary);
+  background: rgba(139, 46, 92, 0.1);
+}
+
+.skillContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skillName {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.selectedBadge {
+  color: var(--color-primary);
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.groupProgress {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.actions {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+}
+

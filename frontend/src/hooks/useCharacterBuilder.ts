@@ -53,6 +53,8 @@ const makeInitialState = (): BuilderState => {
         : ({} as BaseCharacterInput['attributes']),
       // 保留技能分配
       skills: saved.skills || {},
+      // 保留可选技能选择
+      optionalSkills: saved.optionalSkills,
       }
     : {
       name: UI_TEXT.defaultCharacterName,

@@ -132,6 +132,7 @@ const CharacterForm = ({
             professions={professions}
             value={value.professionId}
             onChange={(professionId) => onChange({ professionId })}
+            attributes={value.attributes}
             renderHelpButton={({ onClick }) => (
               <div className={styles.labelRow}>
                 <label className={styles.label} htmlFor="profession">职业</label>
